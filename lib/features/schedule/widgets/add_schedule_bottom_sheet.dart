@@ -22,13 +22,10 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
   final ImagePicker _picker = ImagePicker();
   bool _isRecognizing = false;
 
-
   @override
   void initState() {
     super.initState();
-    // Set the initial index to 1 to default to the AI Assistant tab
     _tabController = TabController(length: 2, vsync: this, initialIndex: 1);
-
     _manualTitleController = TextEditingController();
     _aiTextController = TextEditingController();
 
@@ -59,23 +56,22 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
     super.dispose();
   }
 
-  // New method to handle image picking and OCR
-  Future<void> _pickAndRecognizeImage() async {
+  // Refactored OCR logic into a shared function
+  Future<void> _processImage(ImageSource source) async {
     if (_isRecognizing) return;
 
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+    final XFile? image = await _picker.pickImage(source: source);
     if (image == null || !mounted) return;
 
     setState(() {
       _isRecognizing = true;
-      _aiTextController.text = '正在识别图片...';
+      _aiTextController.text = '正在识别...';
     });
 
     try {
       final text = await _ocrService.recognize(image.path);
       if (mounted) {
-        // Prepend the recognized text to any existing text.
-        final currentText = _aiTextController.text == '正在识别图片...' ? '' : _aiTextController.text;
+        final currentText = _aiTextController.text == '正在识别...' ? '' : _aiTextController.text;
         final newText = text.isEmpty ? '未识别到文字' : text;
         _aiTextController.text = (currentText + ' ' + newText).trim();
       }
@@ -92,16 +88,14 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
-    // This Padding ensures the sheet moves up with the keyboard
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         height: MediaQuery.of(context).size.height * 0.35,
         decoration: const BoxDecoration(
-          color: Colors.white, // Pure white background
+          color: Colors.white,
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(24),
             topRight: Radius.circular(24),
@@ -114,7 +108,7 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
               tabs: const [Tab(text: '手动添加'), Tab(text: 'AI助手')],
               labelColor: Colors.black,
               unselectedLabelColor: Colors.grey,
-              indicatorColor: Colors.black, // Simple, elegant underline indicator
+              indicatorColor: Colors.black,
               indicatorWeight: 3.0,
               indicatorSize: TabBarIndicatorSize.label,
             ),
@@ -138,11 +132,11 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
           Expanded(
             child: TextField(
               controller: _aiTextController,
-              maxLines: null, // Allows expanding
+              maxLines: null,
               autofocus: true,
               decoration: const InputDecoration(
                 hintText: '用一句话，快速添加日程、提醒或待办',
-                hintStyle: TextStyle(color: Colors.grey), // Set hint text color to grey
+                hintStyle: TextStyle(color: Colors.grey),
                 border: InputBorder.none,
               ),
             ),
@@ -155,25 +149,26 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
                 icon: const Icon(Icons.picture_in_picture_alt_outlined, color: Colors.black54, size: 20),
                 label: const Text('悬浮窗', style: TextStyle(color: Colors.black54)),
                 style: TextButton.styleFrom(
-                  backgroundColor: Colors.orange.shade50,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)
-                ),
+                    backgroundColor: Colors.orange.shade50,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
               ),
               Row(
                 children: [
                   IconButton(icon: const Icon(Icons.mic_none_outlined, color: Colors.black54), onPressed: () {}),
-                  // Updated IconButton
                   IconButton(
                     icon: const Icon(Icons.image_outlined, color: Colors.black54),
-                    onPressed: _isRecognizing ? null : _pickAndRecognizeImage, // Disable button when recognizing
+                    onPressed: _isRecognizing ? null : () => _processImage(ImageSource.gallery),
                   ),
-                  IconButton(icon: const Icon(Icons.camera_alt_outlined, color: Colors.black54), onPressed: () {}),
+                  IconButton(
+                    icon: const Icon(Icons.camera_alt_outlined, color: Colors.black54),
+                    onPressed: _isRecognizing ? null : () => _processImage(ImageSource.camera),
+                  ),
                   IconButton(
                     icon: const Icon(Icons.near_me),
                     iconSize: 28,
                     color: _isAiSendEnabled ? Colors.blue : Colors.grey,
-                    onPressed: _isAiSendEnabled ? () { /* AI submit logic */ } : null,
+                    onPressed: _isAiSendEnabled ? () {} : null,
                   ),
                 ],
               )
@@ -222,12 +217,12 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
                 icon: const Icon(Icons.access_time_outlined, color: Colors.amber),
                 onPressed: () {},
               ),
-              const Spacer(), // Pushes the send button to the end
+              const Spacer(),
               IconButton(
-                icon: const Icon(Icons.near_me), // Use the tilted paper plane icon
+                icon: const Icon(Icons.near_me),
                 iconSize: 28,
                 color: _isManualSendEnabled ? Colors.blue : Colors.grey,
-                onPressed: _isManualSendEnabled ? () { /* Manual submit logic */ } : null,
+                onPressed: _isManualSendEnabled ? () {} : null,
               ),
             ],
           ),
