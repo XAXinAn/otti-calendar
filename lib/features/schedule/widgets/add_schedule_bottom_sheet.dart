@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:otti_calendar/services/ocr_service.dart';
 
 class AddScheduleBottomSheet extends StatefulWidget {
   const AddScheduleBottomSheet({super.key});
@@ -14,6 +16,12 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
 
   bool _isManualSendEnabled = false;
   bool _isAiSendEnabled = false;
+
+  // New fields for OCR
+  final OcrService _ocrService = const OcrService();
+  final ImagePicker _picker = ImagePicker();
+  bool _isRecognizing = false;
+
 
   @override
   void initState() {
@@ -50,6 +58,40 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
     _aiTextController.dispose();
     super.dispose();
   }
+
+  // New method to handle image picking and OCR
+  Future<void> _pickAndRecognizeImage() async {
+    if (_isRecognizing) return;
+
+    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+    if (image == null || !mounted) return;
+
+    setState(() {
+      _isRecognizing = true;
+      _aiTextController.text = '正在识别图片...';
+    });
+
+    try {
+      final text = await _ocrService.recognize(image.path);
+      if (mounted) {
+        // Prepend the recognized text to any existing text.
+        final currentText = _aiTextController.text == '正在识别图片...' ? '' : _aiTextController.text;
+        final newText = text.isEmpty ? '未识别到文字' : text;
+        _aiTextController.text = (currentText + ' ' + newText).trim();
+      }
+    } catch (e) {
+      if (mounted) {
+        _aiTextController.text = '识别出错: 请检查权限或模型文件。';
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRecognizing = false;
+        });
+      }
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -121,7 +163,11 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
               Row(
                 children: [
                   IconButton(icon: const Icon(Icons.mic_none_outlined, color: Colors.black54), onPressed: () {}),
-                  IconButton(icon: const Icon(Icons.image_outlined, color: Colors.black54), onPressed: () {}),
+                  // Updated IconButton
+                  IconButton(
+                    icon: const Icon(Icons.image_outlined, color: Colors.black54),
+                    onPressed: _isRecognizing ? null : _pickAndRecognizeImage, // Disable button when recognizing
+                  ),
                   IconButton(icon: const Icon(Icons.camera_alt_outlined, color: Colors.black54), onPressed: () {}),
                   IconButton(
                     icon: const Icon(Icons.near_me),

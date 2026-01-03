@@ -7,24 +7,25 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:otti_calendar/app.dart';
 
-import 'package:otti_calendar/main.dart';
+void main() async {
+  // TEST SETUP: Initialize localization data, just like in main.dart
+  await initializeDateFormatting('zh_CN');
 
-void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+  testWidgets('CalendarPage smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const OttiApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // The app can take a moment to fetch holidays and build the UI.
+    // We might need to pump and settle to wait for all animations and async work to finish.
+    await tester.pumpAndSettle();
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    // Verify that the 'Today' button is present on the screen.
+    expect(find.text('今'), findsOneWidget);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Verify that the Add Schedule button is present.
+    expect(find.text('点击添加日程'), findsOneWidget);
   });
 }
