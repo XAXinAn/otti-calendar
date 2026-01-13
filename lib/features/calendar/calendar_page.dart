@@ -10,7 +10,7 @@ import 'package:otti_calendar/features/schedule/widgets/add_schedule_bottom_shee
 import 'package:otti_calendar/features/schedule/widgets/bottom_input_bar.dart';
 import 'package:lunar/lunar.dart' hide Holiday;
 import 'package:otti_calendar/features/profile/main_drawer.dart';
-import 'package:otti_calendar/features/common/widgets/custom_date_picker.dart'; // Import the new picker
+import 'package:otti_calendar/features/common/widgets/custom_date_picker.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 class CalendarPage extends StatefulWidget {
@@ -27,16 +27,36 @@ class _CalendarPageState extends State<CalendarPage> {
   final HolidayService _holidayService = HolidayService();
   CalendarFormat _calendarFormat = CalendarFormat.month;
 
+  late PageController _pageController;
+  final DateTime _firstDay = DateTime.utc(2010, 10, 16);
+  final DateTime _lastDay = DateTime.utc(2030, 3, 14);
+
   final List<Map<String, dynamic>> _allSchedules = [
-    // ... mock data ...
+    // ... 模拟数据 ...
   ];
 
   @override
   void initState() {
     super.initState();
-    _focusedDay = DateTime.now();
+    final now = DateTime.now();
+    _focusedDay = now;
     _selectedDay = DateTime(now.year, now.month, now.day);
+    _pageController = PageController(initialPage: _getPageIndex(_focusedDay));
     _fetchHolidays();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  int _getPageIndex(DateTime day) {
+    return (day.year - _firstDay.year) * 12 + (day.month - _firstDay.month);
+  }
+
+  DateTime _getDateFromIndex(int index) {
+    return DateTime(_firstDay.year, _firstDay.month + index, 1);
   }
 
   Future<void> _fetchHolidays() async {
@@ -72,7 +92,7 @@ class _CalendarPageState extends State<CalendarPage> {
       dayPrefix = '前天';
     } else if (difference > 2) {
       dayPrefix = '$difference天后';
-    } else { // difference < -2
+    } else {
       dayPrefix = '${-difference}天前';
     }
     
@@ -105,10 +125,20 @@ class _CalendarPageState extends State<CalendarPage> {
 
   void _jumpToToday() {
     final now = DateTime.now();
+    final targetPage = _getPageIndex(now);
+    
     setState(() {
       _focusedDay = now;
       _selectedDay = DateTime(now.year, now.month, now.day);
     });
+
+    if (_pageController.hasClients) {
+      _pageController.animateToPage(
+        targetPage,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   void _showDatePicker() {
@@ -138,10 +168,14 @@ class _CalendarPageState extends State<CalendarPage> {
                   ),
                   TextButton(
                     onPressed: () {
+                      final targetPage = _getPageIndex(tempDate);
                       setState(() {
                         _focusedDay = tempDate;
                         _selectedDay = tempDate;
                       });
+                      if (_pageController.hasClients) {
+                        _pageController.jumpToPage(targetPage);
+                      }
                       Navigator.pop(context);
                     },
                     child: const Text('完成', style: TextStyle(color: Colors.blue)),
@@ -165,8 +199,6 @@ class _CalendarPageState extends State<CalendarPage> {
 
   @override
   Widget build(BuildContext context) {
-    final selectedSchedules = _getSchedulesForDay(_selectedDay ?? DateTime.now());
-
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),
       drawer: const MainDrawer(),
@@ -184,81 +216,89 @@ class _CalendarPageState extends State<CalendarPage> {
           Column(
             children: [
               Expanded(
-                child: NotificationListener<ScrollNotification>(
-                  onNotification: (notification) {
-                    if (notification is UserScrollNotification) {
-                      final direction = notification.direction;
-                      if (direction == ScrollDirection.reverse && _calendarFormat == CalendarFormat.month) {
-                        setState(() {
-                          _calendarFormat = CalendarFormat.week;
-                        });
-                      } else if (direction == ScrollDirection.forward && notification.metrics.pixels == 0 && _calendarFormat == CalendarFormat.week) {
-                        setState(() {
-                          _calendarFormat = CalendarFormat.month;
-                        });
+                child: PageView.builder(
+                  controller: _pageController,
+                  onPageChanged: (index) {
+                    final newDate = _getDateFromIndex(index);
+                    setState(() {
+                      _focusedDay = newDate;
+                      final now = DateTime.now();
+                      if (newDate.year == now.year && newDate.month == now.month) {
+                        _selectedDay = DateTime(now.year, now.month, now.day);
+                      } else {
+                        _selectedDay = DateTime(newDate.year, newDate.month, 1);
                       }
-                    }
-                    return false;
+                    });
                   },
-                  child: ListView(
-                    children: [
-                      CalendarCard(
-                        focusedDay: _focusedDay,
-                        selectedDay: _selectedDay,
-                        holidayData: _holidayData,
-                        calendarFormat: _calendarFormat,
-                        onFormatChanged: (format) {
-                          if (_calendarFormat != format) {
+                  itemBuilder: (context, index) {
+                    final dateForPage = _getDateFromIndex(index);
+                    final schedulesForSelectedDay = _getSchedulesForDay(_selectedDay ?? DateTime.now());
+
+                    return NotificationListener<ScrollNotification>(
+                      onNotification: (notification) {
+                        if (notification is UserScrollNotification) {
+                          final direction = notification.direction;
+                          if (direction == ScrollDirection.reverse && _calendarFormat == CalendarFormat.month) {
                             setState(() {
-                              _calendarFormat = format;
+                              _calendarFormat = CalendarFormat.week;
+                            });
+                          } else if (direction == ScrollDirection.forward && notification.metrics.pixels <= 0 && _calendarFormat == CalendarFormat.week) {
+                            setState(() {
+                              _calendarFormat = CalendarFormat.month;
                             });
                           }
-                        },
-                        onDaySelected: (selectedDay, focusedDay) {
-                          if (selectedDay.month != focusedDay.month) {
-                            return;
-                          }
-                          if (!DateUtils.isSameDay(_selectedDay, selectedDay)) {
-                            setState(() {
-                              _selectedDay = selectedDay;
-                              _focusedDay = focusedDay;
-                            });
-                          }
-                        },
-                        onPageChanged: (focusedDay) {
-                          final now = DateTime.now();
-                          DateTime newSelectedDay;
-                          if (focusedDay.month == now.month && focusedDay.year == now.year) {
-                            newSelectedDay = DateTime(now.year, now.month, now.day);
-                          } else {
-                            newSelectedDay = DateTime(focusedDay.year, focusedDay.month, 1);
-                          }
-                          setState(() {
-                            _focusedDay = focusedDay;
-                            _selectedDay = newSelectedDay;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 24),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Text(_formatSelectedDay(_selectedDay), style: const TextStyle(fontSize: 14, color: Colors.black, fontWeight: FontWeight.bold)),
-                      ),
-                      const SizedBox(height: 16),
-                      if (selectedSchedules.isEmpty)
-                        Center(
-                          child: Column(
-                            children: [
-                              Icon(Icons.calendar_today_outlined, size: 80, color: Colors.grey[300]),
-                              const SizedBox(height: 16),
-                              const Text('没有日程', style: TextStyle(color: Colors.grey, fontSize: 16)),
-                            ],
+                        }
+                        return false;
+                      },
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          CalendarCard(
+                            focusedDay: _focusedDay.month == dateForPage.month && _focusedDay.year == dateForPage.year 
+                                ? _focusedDay 
+                                : dateForPage,
+                            selectedDay: _selectedDay,
+                            holidayData: _holidayData,
+                            calendarFormat: _calendarFormat,
+                            availableGestures: AvailableGestures.none,
+                            onFormatChanged: (format) {
+                              if (_calendarFormat != format) {
+                                setState(() {
+                                  _calendarFormat = format;
+                                });
+                              }
+                            },
+                            onDaySelected: (selectedDay, focusedDay) {
+                              if (selectedDay.month != dateForPage.month) return;
+                              setState(() {
+                                _selectedDay = selectedDay;
+                                _focusedDay = focusedDay;
+                              });
+                            },
+                            onPageChanged: (focusedDay) {},
                           ),
-                        )
-                      else
-                        ScheduleListView(schedules: selectedSchedules),
-                    ],
-                  ),
+                          const SizedBox(height: 24),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                            child: Text(_formatSelectedDay(_selectedDay), style: const TextStyle(fontSize: 14, color: Colors.black, fontWeight: FontWeight.bold)),
+                          ),
+                          const SizedBox(height: 16),
+                          if (schedulesForSelectedDay.isEmpty)
+                            Center(
+                              child: Column(
+                                children: [
+                                  Icon(Icons.calendar_today_outlined, size: 80, color: Colors.grey[300]),
+                                  const SizedBox(height: 16),
+                                  const Text('没有日程', style: TextStyle(color: Colors.grey, fontSize: 16)),
+                                ],
+                              ),
+                            )
+                          else
+                            ScheduleListView(schedules: schedulesForSelectedDay),
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ),
               GestureDetector(
@@ -285,11 +325,11 @@ class _CalendarPageState extends State<CalendarPage> {
                   onPressed: _jumpToToday,
                   backgroundColor: Colors.white,
                   elevation: 4.0,
-                  child: Text(
+                  child: const Text(
                     '今',
                     style: TextStyle(
                       fontSize: 22,
-                      color: const Color.fromRGBO(33, 150, 243, 1),
+                      color: Color.fromRGBO(33, 150, 243, 1),
                     ),
                   ),
                 ),
@@ -300,6 +340,4 @@ class _CalendarPageState extends State<CalendarPage> {
       ),
     );
   }
-
-  DateTime get now => DateTime.now();
 }

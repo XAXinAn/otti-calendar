@@ -26,8 +26,9 @@ class CalendarCard extends StatelessWidget {
   final Map<DateTime, Holiday> holidayData;
   final Function(DateTime, DateTime) onDaySelected;
   final Function(DateTime) onPageChanged;
-  final CalendarFormat calendarFormat; // Add this
-  final Function(CalendarFormat) onFormatChanged; // Add this
+  final CalendarFormat calendarFormat;
+  final Function(CalendarFormat) onFormatChanged;
+  final AvailableGestures availableGestures; // Add this
 
   const CalendarCard({
     super.key,
@@ -36,8 +37,9 @@ class CalendarCard extends StatelessWidget {
     required this.holidayData,
     required this.onDaySelected,
     required this.onPageChanged,
-    required this.calendarFormat, // Add this
-    required this.onFormatChanged, // Add this
+    required this.calendarFormat,
+    required this.onFormatChanged,
+    this.availableGestures = AvailableGestures.all, // Default to all
   });
 
   @override
@@ -55,9 +57,9 @@ class CalendarCard extends StatelessWidget {
           firstDay: DateTime.utc(2010, 10, 16),
           lastDay: DateTime.utc(2030, 3, 14),
           focusedDay: focusedDay,
-          calendarFormat: calendarFormat, // Use the passed format
-          onFormatChanged: onFormatChanged, // Use the passed callback
-          availableGestures: AvailableGestures.all, // Corrected from horizontalAndVertical to all
+          calendarFormat: calendarFormat,
+          onFormatChanged: onFormatChanged,
+          availableGestures: availableGestures, // Use the passed value
           headerVisible: false,
           startingDayOfWeek: StartingDayOfWeek.sunday,
           calendarStyle: const CalendarStyle(cellPadding: EdgeInsets.zero),
