@@ -67,91 +67,116 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SingleChildScrollView(
-        child: Container(
-          height: MediaQuery.of(context).size.height,
-          padding: const EdgeInsets.symmetric(horizontal: 40.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text(
-                  '极 速 日 历',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                const Text(
-                  '让生活更简单',
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 50),
-                // 手机号输入框
-                _buildTextField(
-                  controller: _phoneController,
-                  hintText: '手机号',
-                  icon: Icons.person,
-                  validator: _validatePhone,
-                ),
-                const SizedBox(height: 20),
-                // 密码输入框
-                _buildTextField(
-                  controller: _passwordController,
-                  hintText: '密码',
-                  icon: Icons.lock_outline,
-                  obscureText: true,
-                  validator: (value) => value == null || value.isEmpty ? '请输入密码' : null,
-                ),
-                const SizedBox(height: 40),
-                // 登录按钮
-                SizedBox(
-                  width: double.infinity,
-                  height: 55,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _handleLogin,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2196F3),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                          )
-                        : const Text(
-                            '登录',
-                            style: TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.bold),
+      resizeToAvoidBottomInset: true, // 关键：开启自动调整以避开键盘
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: constraints.maxHeight, // 确保至少占满当前可用高度
+              ),
+              child: IntrinsicHeight(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40.0),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        // 平时占据较大空间将内容推下，键盘弹出时会自动压缩
+                        const Spacer(flex: 18),
+                        
+                        const Text(
+                          '极 速 日 历',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.black,
                           ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          '让生活更简单',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 40),
+                        
+                        _buildTextField(
+                          controller: _phoneController,
+                          hintText: '手机号',
+                          icon: Icons.person,
+                          validator: _validatePhone,
+                        ),
+                        const SizedBox(height: 16),
+                        _buildTextField(
+                          controller: _passwordController,
+                          hintText: '密码',
+                          icon: Icons.lock_outline,
+                          obscureText: true,
+                          validator: (value) => value == null || value.isEmpty ? '请输入密码' : null,
+                        ),
+                        const SizedBox(height: 32),
+                        
+                        Container(
+                          width: double.infinity,
+                          height: 55,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(30),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF2196F3).withOpacity(0.4),
+                                blurRadius: 16,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : _handleLogin,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2196F3),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: _isLoading
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                  )
+                                : const Text(
+                                    '登录',
+                                    style: TextStyle(fontSize: 20, color: Colors.white, fontWeight: FontWeight.bold),
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (context) => const RegisterPage()),
+                            );
+                          },
+                          child: const Text(
+                            '还没有账号？ 立即注册',
+                            style: TextStyle(color: Colors.black38, fontSize: 15),
+                          ),
+                        ),
+                        
+                        // 底部保留较小间距
+                        const Spacer(flex: 2),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 20),
-                // 注册入口
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (context) => const RegisterPage()),
-                    );
-                  },
-                  child: const Text(
-                    '还没有账号？ 立即注册',
-                    style: TextStyle(color: Colors.black38, fontSize: 15),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -170,8 +195,8 @@ class _LoginPageState extends State<LoginPage> {
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle: const TextStyle(color: Colors.black26),
-        prefixIcon: Icon(icon, color: Colors.black87, size: 28),
-        contentPadding: const EdgeInsets.symmetric(vertical: 15),
+        prefixIcon: Icon(icon, color: const Color(0xFFE0E0E0), size: 28),
+        contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(30),
           borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
