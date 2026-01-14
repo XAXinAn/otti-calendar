@@ -78,6 +78,8 @@ class _CustomDatePickerState extends State<CustomDatePicker> {
 
   @override
   Widget build(BuildContext context) {
+    const unitStyle = TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black);
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -90,8 +92,7 @@ class _CustomDatePickerState extends State<CustomDatePicker> {
             });
           }),
         ),
-        const Text('年', style: TextStyle(fontSize: 20, color: Colors.black)),
-        // const SizedBox(width: 10),
+        const Text('年', style: unitStyle),
         Expanded(
           child: _buildPicker(_monthController, _months, (index) {
             setState(() {
@@ -100,8 +101,7 @@ class _CustomDatePickerState extends State<CustomDatePicker> {
             });
           }),
         ),
-        const Text('月', style: TextStyle(fontSize: 20, color: Colors.black)),
-        // const SizedBox(width: 10),
+        const Text('月', style: unitStyle),
         Expanded(
           child: _buildPicker(_dayController, _days, (index) {
             setState(() {
@@ -110,7 +110,7 @@ class _CustomDatePickerState extends State<CustomDatePicker> {
             });
           }),
         ),
-        const Text('日', style: TextStyle(fontSize: 20, color: Colors.black)),
+        const Text('日', style: unitStyle),
         const SizedBox(width: 40),
       ],
     );
@@ -126,7 +126,6 @@ class _CustomDatePickerState extends State<CustomDatePicker> {
       itemExtent: 40,
       physics: const FixedExtentScrollPhysics(),
       onSelectedItemChanged: onChanged,
-      perspective: 0.001,
       children: values.map((value) => Center(
         child: Text('$value', style: const TextStyle(fontSize: 20, color: Colors.black)),
       )).toList(),

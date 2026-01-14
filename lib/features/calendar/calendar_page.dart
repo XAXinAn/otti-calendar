@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:intl/intl.dart';
 import 'package:otti_calendar/models/holiday.dart';
+import 'package:otti_calendar/models/schedule.dart';
 import 'package:otti_calendar/services/holiday_service.dart';
+import 'package:otti_calendar/services/schedule_service.dart';
 import 'package:otti_calendar/features/calendar/widgets/calendar_card.dart';
 import 'package:otti_calendar/features/schedule/widgets/schedule_list_view.dart';
 import 'package:otti_calendar/features/schedule/widgets/add_schedule_bottom_sheet.dart';
@@ -25,15 +27,15 @@ class _CalendarPageState extends State<CalendarPage> {
   DateTime? _selectedDay;
   Map<DateTime, Holiday> _holidayData = {};
   final HolidayService _holidayService = HolidayService();
+  final ScheduleService _scheduleService = ScheduleService();
   CalendarFormat _calendarFormat = CalendarFormat.month;
 
   late PageController _pageController;
   final DateTime _firstDay = DateTime.utc(2010, 10, 16);
   final DateTime _lastDay = DateTime.utc(2030, 3, 14);
 
-  final List<Map<String, dynamic>> _allSchedules = [
-    // ... 模拟数据 ...
-  ];
+  List<Schedule> _currentSchedules = [];
+  bool _isListLoading = false;
 
   @override
   void initState() {
@@ -43,6 +45,7 @@ class _CalendarPageState extends State<CalendarPage> {
     _selectedDay = DateTime(now.year, now.month, now.day);
     _pageController = PageController(initialPage: _getPageIndex(_focusedDay));
     _fetchHolidays();
+    _fetchSchedules(); 
   }
 
   @override
@@ -68,8 +71,26 @@ class _CalendarPageState extends State<CalendarPage> {
     }
   }
 
-  List<Map<String, dynamic>> _getSchedulesForDay(DateTime day) {
-    return _allSchedules.where((schedule) => DateUtils.isSameDay(schedule['date'] as DateTime?, day)).toList();
+  Future<void> _fetchSchedules() async {
+    if (_selectedDay == null) return;
+    final String dateStr = DateFormat('yyyy-MM-dd').format(_selectedDay!);
+    
+    debugPrint('[Network] 正在请求日期: $dateStr 的日程...');
+    setState(() => _isListLoading = true);
+    
+    try {
+      final schedules = await _scheduleService.getSchedulesByDate(_selectedDay!);
+      if (mounted) {
+        debugPrint('[Network] 成功返回 ${schedules.length} 条日程。');
+        setState(() {
+          _currentSchedules = schedules;
+          _isListLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('[Network] 请求异常: $e');
+      if (mounted) setState(() => _isListLoading = false);
+    }
   }
 
   String _formatSelectedDay(DateTime? day) {
@@ -114,13 +135,50 @@ class _CalendarPageState extends State<CalendarPage> {
     return '$dayPrefix $lunarDateString';
   }
 
-  void _showAddScheduleSheet() {
-    showModalBottomSheet(
+  void _showMiddleTip(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.transparent,
+      builder: (BuildContext context) {
+        Future.delayed(const Duration(seconds: 2), () {
+          if (Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          }
+        });
+        return Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontSize: 15, decoration: TextDecoration.none),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showAddScheduleSheet() async {
+    final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => const AddScheduleBottomSheet(),
     );
+    
+    if (result == true) {
+      _showMiddleTip('日程添加成功');
+      _fetchSchedules();
+    }
   }
 
   void _jumpToToday() {
@@ -139,6 +197,7 @@ class _CalendarPageState extends State<CalendarPage> {
         curve: Curves.easeInOut,
       );
     }
+    Future.delayed(const Duration(milliseconds: 100), _fetchSchedules);
   }
 
   void _showDatePicker() {
@@ -177,6 +236,7 @@ class _CalendarPageState extends State<CalendarPage> {
                         _pageController.jumpToPage(targetPage);
                       }
                       Navigator.pop(context);
+                      _fetchSchedules();
                     },
                     child: const Text('完成', style: TextStyle(color: Colors.blue)),
                   ),
@@ -204,6 +264,7 @@ class _CalendarPageState extends State<CalendarPage> {
       drawer: const MainDrawer(),
       appBar: AppBar(
         title: Text('${_focusedDay.year}年${_focusedDay.month}月', style: const TextStyle(fontWeight: FontWeight.bold)),
+        centerTitle: true,
         actions: [
           IconButton(icon: const Icon(Icons.search), onPressed: () {}),
         ],
@@ -222,17 +283,12 @@ class _CalendarPageState extends State<CalendarPage> {
                     final newDate = _getDateFromIndex(index);
                     setState(() {
                       _focusedDay = newDate;
-                      final now = DateTime.now();
-                      if (newDate.year == now.year && newDate.month == now.month) {
-                        _selectedDay = DateTime(now.year, now.month, now.day);
-                      } else {
-                        _selectedDay = DateTime(newDate.year, newDate.month, 1);
-                      }
+                      _selectedDay = DateTime(newDate.year, newDate.month, 1);
                     });
+                    _fetchSchedules();
                   },
                   itemBuilder: (context, index) {
                     final dateForPage = _getDateFromIndex(index);
-                    final schedulesForSelectedDay = _getSchedulesForDay(_selectedDay ?? DateTime.now());
 
                     return NotificationListener<ScrollNotification>(
                       onNotification: (notification) {
@@ -274,6 +330,7 @@ class _CalendarPageState extends State<CalendarPage> {
                                 _selectedDay = selectedDay;
                                 _focusedDay = focusedDay;
                               });
+                              _fetchSchedules();
                             },
                             onPageChanged: (focusedDay) {},
                           ),
@@ -283,7 +340,13 @@ class _CalendarPageState extends State<CalendarPage> {
                             child: Text(_formatSelectedDay(_selectedDay), style: const TextStyle(fontSize: 14, color: Colors.black, fontWeight: FontWeight.bold)),
                           ),
                           const SizedBox(height: 16),
-                          if (schedulesForSelectedDay.isEmpty)
+                          
+                          if (_isListLoading)
+                            const Center(child: Padding(
+                              padding: EdgeInsets.all(32.0),
+                              child: CircularProgressIndicator(),
+                            ))
+                          else if (_currentSchedules.isEmpty)
                             Center(
                               child: Column(
                                 children: [
@@ -294,7 +357,18 @@ class _CalendarPageState extends State<CalendarPage> {
                               ),
                             )
                           else
-                            ScheduleListView(schedules: schedulesForSelectedDay),
+                            ScheduleListView(
+                              schedules: _currentSchedules.map((s) => s.toJson()).toList(),
+                              onActionComplete: (action) {
+                                // 接收来自详情页的操作反馈
+                                if (action == 'updated') {
+                                  _showMiddleTip('修改成功');
+                                } else if (action == 'deleted') {
+                                  _showMiddleTip('删除成功');
+                                }
+                                _fetchSchedules(); // 刷新列表
+                              },
+                            ),
                         ],
                       ),
                     );

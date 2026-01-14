@@ -129,8 +129,8 @@ class CalendarCard extends StatelessWidget {
                   children: [
                     dayCell,
                     Positioned(
-                      top: 6,
-                      right: 6,
+                      top: 4,
+                      right: 4,
                       child: Text(
                         holiday.type,
                         style: TextStyle(color: holidayColor, fontSize: 10, fontWeight: FontWeight.bold),
