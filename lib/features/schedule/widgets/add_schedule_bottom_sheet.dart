@@ -33,6 +33,7 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
   String? _selectedCategory;
+  bool _isImportant = false;
 
   static const Map<String, Color> _categoryColors = {
     '工作': Color(0xFF2196F3),
@@ -76,46 +77,13 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
     }
   }
 
-  // 显示屏幕中间的半透明提示
-  void _showMiddleTip(String message) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      barrierColor: Colors.transparent, // 保持背景透明
-      builder: (BuildContext context) {
-        // 2秒后自动关闭
-        Future.delayed(const Duration(seconds: 2), () {
-          if (Navigator.of(context).canPop()) {
-            Navigator.of(context).pop();
-          }
-        });
-        return Center(
-          child: Material(
-            color: Colors.transparent,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.7), // 半透明黑色背景
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                message,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white, fontSize: 15),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   @override
   void dispose() {
-    _tabController.dispose();
+    // 修正：使用正确的变量名
     _manualTitleController.dispose();
     _manualLocationController.dispose();
     _aiTextController.dispose();
+    _tabController.dispose();
     super.dispose();
   }
 
@@ -125,36 +93,16 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
-        height: MediaQuery.of(context).size.height / 3,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
-        ),
+        height: 300,
+        decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消', style: TextStyle(color: Colors.grey))),
-                  TextButton(
-                    onPressed: () {
-                      setState(() => _selectedDate = tempDate);
-                      _updateManualSendState();
-                      Navigator.pop(context);
-                    },
-                    child: const Text('完成', style: TextStyle(color: Colors.blue)),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: CustomDatePicker(
-                initialDate: _selectedDate ?? DateTime.now(),
-                onDateChanged: (newDate) => tempDate = newDate,
-              ),
-            ),
+            _buildPickerHeader('选择日期', () {
+              setState(() => _selectedDate = tempDate);
+              _updateManualSendState();
+              Navigator.pop(context);
+            }),
+            Expanded(child: CustomDatePicker(initialDate: tempDate, onDateChanged: (date) => tempDate = date)),
           ],
         ),
       ),
@@ -167,36 +115,16 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
-        height: MediaQuery.of(context).size.height / 3,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
-        ),
+        height: 300,
+        decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消', style: TextStyle(color: Colors.grey))),
-                  TextButton(
-                    onPressed: () {
-                      setState(() => _selectedTime = tempTime);
-                      _updateManualSendState();
-                      Navigator.pop(context);
-                    },
-                    child: const Text('完成', style: TextStyle(color: Colors.blue)),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: CustomTimePicker(
-                initialTime: _selectedTime ?? TimeOfDay.now(),
-                onTimeChanged: (newTime) => tempTime = newTime,
-              ),
-            ),
+            _buildPickerHeader('选择时间', () {
+              setState(() => _selectedTime = tempTime);
+              _updateManualSendState();
+              Navigator.pop(context);
+            }),
+            Expanded(child: CustomTimePicker(initialTime: tempTime, onTimeChanged: (time) => tempTime = time)),
           ],
         ),
       ),
@@ -227,12 +155,13 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
     setState(() => _isLoading = true);
 
     final schedule = Schedule(
-      title: _manualTitleController.text,
+      title: _manualTitleController.text.trim(),
       scheduleDate: DateFormat('yyyy-MM-dd').format(_selectedDate!),
       startTime: "${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}",
-      location: _manualLocationController.text.isNotEmpty ? _manualLocationController.text : null,
+      location: _manualLocationController.text.trim().isEmpty ? null : _manualLocationController.text.trim(),
       category: _selectedCategory!,
       isAllDay: false,
+      isImportant: _isImportant,
     );
 
     final success = await _scheduleService.createSchedule(schedule);
@@ -241,55 +170,36 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
 
     if (mounted) {
       if (success) {
-        Navigator.pop(context, true); // 返回成功状态
+        Navigator.pop(context, true); 
       } else {
-        _showMiddleTip('日程添加失败，请重试'); // 失败显示中间提示
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('日程添加失败')));
       }
-    }
-  }
-
-  Future<void> _processImage(ImageSource source) async {
-    if (_isRecognizing) return;
-    final XFile? image = await _picker.pickImage(source: source);
-    if (image == null || !mounted) return;
-
-    setState(() {
-      _isRecognizing = true;
-      _aiTextController.text = '正在识别...';
-    });
-
-    try {
-      final text = await _ocrService.recognize(image.path);
-      if (mounted) {
-        final currentText = _aiTextController.text == '正在识别...' ? '' : _aiTextController.text;
-        _aiTextController.text = (currentText + ' ' + (text.isEmpty ? '未识别到文字' : text)).trim();
-      }
-    } catch (e) {
-      if (mounted) _showMiddleTip('识别出错');
-    } finally {
-      if (mounted) setState(() => _isRecognizing = false);
     }
   }
 
   Widget _buildTag(String label, Color color, VoidCallback onCancel) {
     return Container(
       padding: const EdgeInsets.only(left: 10, top: 6, bottom: 6, right: 6),
-      decoration: BoxDecoration(
-        color: color, 
-        borderRadius: BorderRadius.circular(20),
-      ),
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(20)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            label, 
-            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)
-          ),
+          Text(label, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
           const SizedBox(width: 4),
-          GestureDetector(
-            onTap: onCancel,
-            child: const Icon(Icons.close, color: Colors.white, size: 14),
-          ),
+          GestureDetector(onTap: onCancel, child: const Icon(Icons.close, color: Colors.white, size: 14)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPickerHeader(String title, VoidCallback onDone) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          TextButton(onPressed: onDone, child: const Text('完成', style: TextStyle(fontSize: 16))),
         ],
       ),
     );
@@ -300,7 +210,7 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
-        height: MediaQuery.of(context).size.height * 0.35,
+        height: MediaQuery.of(context).size.height * 0.38,
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
@@ -312,8 +222,6 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
               tabs: const [Tab(text: '手动添加'), Tab(text: '一键记录')],
               labelColor: Colors.black,
               unselectedLabelColor: Colors.black26,
-              labelStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-              unselectedLabelStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.normal),
               indicatorColor: Colors.black,
               indicatorSize: TabBarIndicatorSize.label,
               indicatorWeight: 2.5,
@@ -344,91 +252,53 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
             minLines: 1,
             maxLines: 2,
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-            decoration: const InputDecoration(
-              hintText: '告诉小獭你的日程~',
-              hintStyle: TextStyle(color: Colors.black26),
-              border: InputBorder.none,
-              contentPadding: EdgeInsets.zero,
-            ),
+            decoration: const InputDecoration(hintText: '告诉小獭你的日程~', hintStyle: TextStyle(color: Colors.black26), border: InputBorder.none, contentPadding: EdgeInsets.zero),
           ),
           TextField(
             controller: _manualLocationController,
             style: const TextStyle(fontSize: 16, color: Colors.black),
-            decoration: const InputDecoration(
-              hintText: '地点',
-              hintStyle: TextStyle(color: Colors.black26, fontSize: 16),
-              border: InputBorder.none,
-              contentPadding: EdgeInsets.zero,
-            ),
+            decoration: const InputDecoration(hintText: '地点', hintStyle: TextStyle(color: Colors.black26, fontSize: 16), border: InputBorder.none, contentPadding: EdgeInsets.zero),
           ),
-          
           const Spacer(),
-          
           if (hasTags) ...[
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
                   if (_selectedDate != null) ...[
-                    _buildTag(
-                      '# ${DateFormat('yyyy年M月d日', 'zh_CN').format(_selectedDate!)}',
-                      const Color(0xFFEF5350),
-                      () {
-                        setState(() => _selectedDate = null);
-                        _updateManualSendState();
-                      },
-                    ),
+                    _buildTag('# ${DateFormat('yyyy年M月d日', 'zh_CN').format(_selectedDate!)}', const Color(0xFFEF5350), () { setState(() => _selectedDate = null); _updateManualSendState(); }),
                     const SizedBox(width: 6),
                   ],
                   if (_selectedTime != null) ...[
-                    _buildTag(
-                      '# ${_formatTime(_selectedTime!)}',
-                      const Color(0xFFFFC107),
-                      () {
-                        setState(() => _selectedTime = null);
-                        _updateManualSendState();
-                      },
-                    ),
+                    _buildTag('# ${_formatTime(_selectedTime!)}', const Color(0xFFFFC107), () { setState(() => _selectedTime = null); _updateManualSendState(); }),
                     const SizedBox(width: 6),
                   ],
                   if (_selectedCategory != null)
-                    _buildTag(
-                      '# $_selectedCategory',
-                      _categoryColors[_selectedCategory] ?? Colors.grey,
-                      () {
-                        setState(() => _selectedCategory = null);
-                        _updateManualSendState();
-                      },
-                    ),
+                    _buildTag('# $_selectedCategory', _categoryColors[_selectedCategory] ?? Colors.grey, () { setState(() => _selectedCategory = null); _updateManualSendState(); }),
                 ],
               ),
             ),
             const SizedBox(height: 8), 
           ],
-          
           Row(
             children: [
-              IconButton(
-                icon: const Icon(Icons.calendar_today_outlined, color: Color(0xFFEF5350), size: 24),
-                onPressed: _showDatePicker,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
+              IconButton(icon: const Icon(Icons.calendar_today_outlined, color: Color(0xFFEF5350), size: 24), onPressed: _showDatePicker, padding: EdgeInsets.zero, constraints: const BoxConstraints()),
               const SizedBox(width: 12), 
-              IconButton(
-                icon: const Icon(Icons.access_time_outlined, color: Color(0xFFFFC107), size: 24),
-                onPressed: _showTimePicker,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
+              IconButton(icon: const Icon(Icons.access_time_outlined, color: Color(0xFFFFC107), size: 24), onPressed: _showTimePicker, padding: EdgeInsets.zero, constraints: const BoxConstraints()),
               const SizedBox(width: 12), 
-              if (_selectedCategory == null)
-                IconButton(
-                  icon: const Icon(Icons.label_outline, color: Colors.blue, size: 24),
-                  onPressed: _pickCategory,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
+              IconButton(icon: const Icon(Icons.label_outline, color: Colors.blue, size: 24), onPressed: _pickCategory, padding: EdgeInsets.zero, constraints: const BoxConstraints()),
+              const SizedBox(width: 12),
+              GestureDetector(
+                onTap: () {
+                  setState(() => _isImportant = !_isImportant);
+                  _updateManualSendState();
+                },
+                child: Icon(
+                  _isImportant ? Icons.star_rounded : Icons.star_outline_rounded,
+                  color: _isImportant ? Colors.orange : Colors.black12,
+                  size: 26,
                 ),
+              ),
               const Spacer(),
               _isLoading 
                 ? const SizedBox(height: 20, width: 24, child: CircularProgressIndicator(strokeWidth: 2))
@@ -474,13 +344,7 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
               Row(
                 children: [
                   IconButton(icon: const Icon(Icons.mic_none_outlined, size: 22, color: Colors.black54), onPressed: () {}),
-                  IconButton(icon: const Icon(Icons.image_outlined, size: 22, color: Colors.black54), onPressed: () => _processImage(ImageSource.gallery)),
-                  IconButton(icon: const Icon(Icons.camera_alt_outlined, size: 22, color: Colors.black54), onPressed: () => _processImage(ImageSource.camera)),
-                  IconButton(
-                    icon: const Icon(Icons.near_me, size: 28),
-                    color: _isAiSendEnabled ? Colors.blue : Colors.grey,
-                    onPressed: _isAiSendEnabled ? () {} : null,
-                  ),
+                  IconButton(icon: const Icon(Icons.near_me, size: 28), color: _isAiSendEnabled ? Colors.blue : Colors.grey, onPressed: _isAiSendEnabled ? () {} : null),
                 ],
               )
             ],

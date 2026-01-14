@@ -1,15 +1,16 @@
 import 'package:intl/intl.dart';
 
 class Schedule {
-  final String? scheduleId; // 改为后端要求的 scheduleId
+  final String? scheduleId;
   final String title;
   final String scheduleDate;
-  final String? startTime;    // 后端说可能为 null
+  final String? startTime;
   final String? endTime;
   final String? location;
   final String category;
   final bool isAllDay;
   final bool isAiGenerated;
+  final bool isImportant; // 新增重要标志
 
   Schedule({
     this.scheduleId,
@@ -21,11 +22,12 @@ class Schedule {
     required this.category,
     this.isAllDay = false,
     this.isAiGenerated = false,
+    this.isImportant = false, // 默认不重要
   });
 
   Map<String, dynamic> toJson() {
     return {
-      'scheduleId': scheduleId, // 适配后端
+      'scheduleId': scheduleId,
       'title': title,
       'scheduleDate': scheduleDate,
       'startTime': startTime,
@@ -34,12 +36,13 @@ class Schedule {
       'category': category,
       'isAllDay': isAllDay,
       'isAiGenerated': isAiGenerated,
+      'isImportant': isImportant,
     };
   }
 
   factory Schedule.fromJson(Map<String, dynamic> json) {
     return Schedule(
-      scheduleId: json['scheduleId']?.toString(), // 适配后端
+      scheduleId: json['scheduleId']?.toString(),
       title: json['title'] ?? '',
       scheduleDate: json['scheduleDate'] ?? '',
       startTime: json['startTime'],
@@ -48,6 +51,7 @@ class Schedule {
       category: json['category'] ?? '其他',
       isAllDay: json['isAllDay'] ?? false,
       isAiGenerated: json['isAiGenerated'] ?? false,
+      isImportant: json['isImportant'] ?? false,
     );
   }
 }

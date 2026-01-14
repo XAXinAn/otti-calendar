@@ -21,8 +21,22 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
 
   late TextEditingController _titleController;
   late TextEditingController _locationController;
+  late bool _isImportant;
   
   bool _isSaving = false;
+
+  static const Map<String, Color> _categoryColors = {
+    '工作': Color(0xFF2196F3),
+    '学习': Color(0xFF4CAF50),
+    '个人': Color(0xFFFF9800),
+    '生活': Color(0xFF9C27B0),
+    '健康': Color(0xFFF44336),
+    '运动': Color(0xFF009688),
+    '社交': Color(0xFFE91E63),
+    '家庭': Color(0xFF3F51B5),
+    '差旅': Color(0xFFFFC107),
+    '其他': Color(0xFF9E9E9E),
+  };
 
   static const Map<String, IconData> _categoryIcons = {
     '工作': Icons.work_outline,
@@ -43,6 +57,7 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
     _currentSchedule = widget.schedule;
     _titleController = TextEditingController(text: _currentSchedule.title);
     _locationController = TextEditingController(text: _currentSchedule.location ?? '');
+    _isImportant = _currentSchedule.isImportant;
   }
 
   @override
@@ -57,11 +72,11 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
     try {
       final parts = timeStr.split(':');
       if (parts.length < 2) return timeStr;
-      final hour = int.tryParse(parts[0]) ?? 0;
-      final minuteStr = parts[1].substring(0, parts[1].length >= 2 ? 2 : parts[1].length);
+      final hour = int.parse(parts[0]);
+      final minuteStr = parts[1].substring(0, 2);
       final period = hour < 12 ? '上午' : '下午';
       final hourOfPeriod = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
-      return '$period $hourOfPeriod:${minuteStr.padLeft(2, '0')}';
+      return '$period $hourOfPeriod:$minuteStr';
     } catch (e) {
       return timeStr;
     }
@@ -72,10 +87,8 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
       _showErrorTip('标题不能为空');
       return;
     }
-
     setState(() => _isSaving = true);
-
-    final updatedSchedule = Schedule(
+    final updated = Schedule(
       scheduleId: _currentSchedule.scheduleId,
       title: _titleController.text.trim(),
       scheduleDate: _currentSchedule.scheduleDate,
@@ -83,18 +96,12 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
       location: _locationController.text.trim().isEmpty ? null : _locationController.text.trim(),
       category: _currentSchedule.category,
       isAllDay: _currentSchedule.isAllDay,
+      isImportant: _isImportant,
     );
-
-    final success = await _scheduleService.updateSchedule(updatedSchedule);
-
+    final success = await _scheduleService.updateSchedule(updated);
     if (mounted) {
       setState(() => _isSaving = false);
-      if (success) {
-        // 成功后直接退出，并传递 'updated' 字符串
-        Navigator.pop(context, 'updated');
-      } else {
-        _showErrorTip('修改失败，请重试');
-      }
+      if (success) Navigator.pop(context, 'updated');
     }
   }
 
@@ -110,23 +117,16 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
         ],
       ),
     );
-
     if (confirm == true) {
       setState(() => _isSaving = true);
       final success = await _scheduleService.deleteSchedule(_currentSchedule.scheduleId!);
       if (mounted) {
         setState(() => _isSaving = false);
-        if (success) {
-          // 成功后直接退出，并传递 'deleted' 字符串
-          Navigator.pop(context, 'deleted');
-        } else {
-          _showErrorTip('删除失败');
-        }
+        if (success) Navigator.pop(context, 'deleted');
       }
     }
   }
 
-  // 仅用于错误提示（页面不退出时使用）
   void _showErrorTip(String message) {
     if (!mounted) return;
     showDialog(
@@ -171,6 +171,7 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
                   location: _currentSchedule.location,
                   category: _currentSchedule.category,
                   isAllDay: _currentSchedule.isAllDay,
+                  isImportant: _isImportant,
                 );
               });
               Navigator.pop(context);
@@ -185,7 +186,7 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
   void _editTime() {
     final timeStr = _currentSchedule.startTime ?? "09:00";
     final parts = timeStr.split(':');
-    TimeOfDay initial = TimeOfDay(hour: int.tryParse(parts[0]) ?? 9, minute: parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0);
+    TimeOfDay initial = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -205,6 +206,7 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
                   location: _currentSchedule.location,
                   category: _currentSchedule.category,
                   isAllDay: false,
+                  isImportant: _isImportant,
                 );
               });
               Navigator.pop(context);
@@ -214,26 +216,6 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
         ),
       ),
     );
-  }
-
-  Future<void> _editCategory() async {
-    final result = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(builder: (context) => CategoryPickerPage(selectedCategory: _currentSchedule.category)),
-    );
-    if (result != null) {
-      setState(() {
-        _currentSchedule = Schedule(
-          scheduleId: _currentSchedule.scheduleId,
-          title: _currentSchedule.title,
-          scheduleDate: _currentSchedule.scheduleDate,
-          startTime: _currentSchedule.startTime,
-          location: _currentSchedule.location,
-          category: result,
-          isAllDay: _currentSchedule.isAllDay,
-        );
-      });
-    }
   }
 
   Widget _buildPickerHeader(String title, VoidCallback onDone) {
@@ -251,55 +233,110 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final Color brandColor = _categoryColors[_currentSchedule.category] ?? Colors.blue;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),
       appBar: AppBar(
-        title: const Text('日程详情', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('日程详情', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: Colors.black,
         leading: IconButton(icon: const Icon(Icons.chevron_left, size: 32), onPressed: () => Navigator.pop(context)),
         actions: [
-          IconButton(icon: const Icon(Icons.delete_outline, size: 26, color: Colors.black54), onPressed: _isSaving ? null : _handleDelete),
-          IconButton(icon: const Icon(Icons.check, size: 28, color: Colors.blue), onPressed: _isSaving ? null : _handleUpdate),
+          IconButton(icon: const Icon(Icons.delete_outline, size: 26, color: Colors.black54), onPressed: _handleDelete),
+          IconButton(icon: const Icon(Icons.check, size: 28, color: Colors.black54), onPressed: _handleUpdate),
           const SizedBox(width: 8),
         ],
       ),
       body: _isSaving 
         ? const Center(child: CircularProgressIndicator())
-        : Center(
-            child: SingleChildScrollView(
+        : SingleChildScrollView(
+            child: Container(
+              margin: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(40),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 10))
+                ],
+              ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 20),
+                padding: const EdgeInsets.fromLTRB(24, 40, 24, 8),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     GestureDetector(
-                      onTap: _editCategory,
+                      onTap: () async {
+                        final result = await Navigator.push<String>(
+                          context,
+                          MaterialPageRoute(builder: (context) => CategoryPickerPage(selectedCategory: _currentSchedule.category)),
+                        );
+                        if (result != null) {
+                          setState(() {
+                            _currentSchedule = Schedule(
+                              scheduleId: _currentSchedule.scheduleId,
+                              title: _currentSchedule.title,
+                              scheduleDate: _currentSchedule.scheduleDate,
+                              startTime: _currentSchedule.startTime,
+                              location: _currentSchedule.location,
+                              category: result,
+                              isAllDay: _currentSchedule.isAllDay,
+                              isImportant: _isImportant,
+                            );
+                          });
+                        }
+                      },
                       child: Column(
                         children: [
-                          Icon(_categoryIcons[_currentSchedule.category] ?? Icons.event, size: 80, color: Colors.blue),
-                          const SizedBox(height: 12),
-                          Text('${_currentSchedule.category} (点击切换分类)', style: const TextStyle(color: Colors.grey, fontSize: 14)),
+                          Icon(_categoryIcons[_currentSchedule.category] ?? Icons.category_rounded, size: 100, color: brandColor),
+                          const SizedBox(height: 16),
+                          Text('${_currentSchedule.category} (点击切换分类)', style: TextStyle(fontSize: 16, color: brandColor, fontWeight: FontWeight.w600)),
                         ],
                       ),
                     ),
                     const SizedBox(height: 40),
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 20),
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                      child: Column(
-                        children: [
-                          _buildEditableItem(Icons.title, '标题', _titleController),
-                          _buildDivider(),
-                          _buildDetailItem(Icons.calendar_today_outlined, '日期', _currentSchedule.scheduleDate, _editDate),
-                          _buildDivider(),
-                          _buildDetailItem(Icons.access_time, '时间', _getDisplayTime(_currentSchedule.startTime), _editTime),
-                          _buildDivider(),
-                          _buildEditableItem(Icons.location_on_outlined, '地点', _locationController, hint: '未设置地点'),
-                        ],
-                      ),
+                    _buildDetailRow(Icons.edit_note_rounded, '标题',
+                      child: TextField(
+                        controller: _titleController,
+                        maxLines: null,
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(fontSize: 16, color: Colors.black87),
+                        decoration: const InputDecoration(border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
+                      )
+                    ),
+                    _buildDetailRow(Icons.calendar_today_rounded, '日期', value: _currentSchedule.scheduleDate, onTap: _editDate),
+                    _buildDetailRow(Icons.access_time_rounded, '时间', value: _getDisplayTime(_currentSchedule.startTime), onTap: _editTime),
+                    _buildDetailRow(Icons.location_on_rounded, '地点', 
+                      child: TextField(
+                        controller: _locationController,
+                        maxLines: null,
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(fontSize: 16, color: Colors.black87),
+                        decoration: const InputDecoration(hintText: '未设置地点', hintStyle: TextStyle(color: Colors.black12), border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
+                      )
+                    ),
+                    // 重要性开关，关闭时黑边白底
+                    _buildDetailRow(Icons.star_rounded, '重要', 
+                      showDivider: false,
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Switch(
+                          value: _isImportant,
+                          onChanged: (val) => setState(() => _isImportant = val),
+                          activeColor: Colors.white, // 开启时滑块白色
+                          activeTrackColor: brandColor, // 开启时背景颜色
+                          inactiveThumbColor: Colors.black, // 关闭时滑块黑色
+                          inactiveTrackColor: Colors.white, // 关闭时背景白色
+                          trackOutlineColor: WidgetStateProperty.resolveWith<Color?>((states) {
+                            if (states.contains(WidgetState.selected)) {
+                              return Colors.transparent;
+                            }
+                            return Colors.black; // 关闭时显示黑边
+                          }),
+                        ),
+                      )
                     ),
                   ],
                 ),
@@ -309,51 +346,36 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
     );
   }
 
-  Widget _buildEditableItem(IconData icon, String label, TextEditingController controller, {String hint = ''}) {
-    return Padding(
-      padding: const EdgeInsets.all(20.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: Colors.grey, size: 24),
-          const SizedBox(width: 16),
-          SizedBox(width: 60, child: Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
-          const SizedBox(width: 12),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              textAlign: TextAlign.right,
-              maxLines: null,
-              style: const TextStyle(fontSize: 16, color: Colors.black87),
-              decoration: InputDecoration(hintText: hint, hintStyle: const TextStyle(color: Colors.black12), border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-            ),
+  Widget _buildDetailRow(IconData icon, String label, {String? value, Widget? child, VoidCallback? onTap, bool showDivider = true}) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 90,
+                child: Row(
+                  children: [
+                    Icon(icon, color: Colors.grey.shade400, size: 24),
+                    const SizedBox(width: 8),
+                    Text(label, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w500, color: Colors.black87)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: GestureDetector(
+                  onTap: onTap,
+                  child: child ?? Text(value ?? '', style: const TextStyle(fontSize: 16, color: Colors.black87), textAlign: TextAlign.right),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailItem(IconData icon, String label, String value, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: Colors.grey, size: 24),
-            const SizedBox(width: 16),
-            SizedBox(width: 60, child: Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
-            const SizedBox(width: 12),
-            Expanded(child: Text(value, style: const TextStyle(fontSize: 16, color: Colors.black87), textAlign: TextAlign.right)),
-            const SizedBox(width: 8),
-            const Icon(Icons.chevron_right, color: Colors.black12, size: 20),
-          ],
         ),
-      ),
+        if (showDivider) Divider(height: 1, color: Colors.grey.shade200, thickness: 1.2),
+      ],
     );
   }
-
-  Widget _buildDivider() => Divider(height: 1, indent: 56, endIndent: 20, color: Colors.grey[100]);
 }

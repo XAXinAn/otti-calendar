@@ -4,7 +4,6 @@ import 'package:otti_calendar/models/schedule.dart';
 
 class ScheduleListView extends StatelessWidget {
   final List<Map<String, dynamic>> schedules;
-  // 新增回调，用于通知父组件发生了什么操作
   final Function(String)? onActionComplete;
 
   const ScheduleListView({super.key, required this.schedules, this.onActionComplete});
@@ -44,8 +43,6 @@ class ScheduleListView extends StatelessWidget {
                 builder: (context) => ScheduleDetailPage(schedule: schedule),
               ),
             );
-            
-            // 如果有返回值，通过回调通知主页
             if (result != null && onActionComplete != null) {
               onActionComplete!(result as String);
             }
@@ -56,11 +53,31 @@ class ScheduleListView extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // 左侧时间+重要性标志区域
                 SizedBox(
                   width: 50,
-                  child: Text(
-                    displayTime, 
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87)
+                  child: Column(
+                    children: [
+                      Text(
+                        displayTime, 
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87)
+                      ),
+                      const SizedBox(height: 8),
+                      // 如果重要，显示红色感叹号
+                      if (schedule.isImportant)
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.priority_high, 
+                            color: Colors.white, 
+                            size: 14,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 16),
