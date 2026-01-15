@@ -19,7 +19,7 @@ class AuthData {
   final String token;
   final String refreshToken;
   final int expiresIn;
-  final UserInfo? userInfo; // 改为可选
+  final UserInfo? userInfo;
 
   AuthData({
     required this.userId,
@@ -46,6 +46,7 @@ class UserInfo {
   final String phone;
   final String? avatar;
   final String role;
+  final String? gender; // 新增
 
   UserInfo({
     required this.userId,
@@ -53,6 +54,7 @@ class UserInfo {
     required this.phone,
     this.avatar,
     required this.role,
+    this.gender,
   });
 
   factory UserInfo.fromJson(Map<String, dynamic> json) {
@@ -62,6 +64,18 @@ class UserInfo {
       phone: json['phone']?.toString() ?? '',
       avatar: json['avatar']?.toString(),
       role: json['role']?.toString() ?? 'user',
+      gender: json['gender']?.toString() ?? '保密',
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'userId': userId,
+      'username': username,
+      'phone': phone,
+      'avatar': avatar,
+      'role': role,
+      'gender': gender,
+    };
   }
 }

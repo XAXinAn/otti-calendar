@@ -11,10 +11,14 @@ class OttiApp extends StatelessWidget {
     return MaterialApp(
       title: 'OttiCalendar',
       theme: ThemeData(
-        // Disable the ripple effect globally
         splashFactory: NoSplash.splashFactory,
         highlightColor: Colors.transparent,
       ),
+      // 配置路由表以便退出登录跳转
+      routes: {
+        '/login': (context) => const LoginPage(),
+        '/home': (context) => const CalendarPage(),
+      },
       home: const AuthCheckScreen(),
     );
   }
@@ -35,19 +39,12 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> {
     return FutureBuilder<String?>(
       future: _authService.getToken(),
       builder: (context, snapshot) {
-        // 当连接状态为等待时，显示加载中（这里可以放闪屏页 UI）
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
-
-        // 如果 snapshot 中有 Token，说明已登录，进入日历主页
         if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
           return const CalendarPage();
         }
-
-        // 否则进入登录页面
         return const LoginPage();
       },
     );
