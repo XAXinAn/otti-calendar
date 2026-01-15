@@ -20,40 +20,29 @@ class GroupService {
     };
   }
 
-  // 创建群组
+  // 1. 创建群组
   Future<Map<String, dynamic>> createGroup(String name, String? description) async {
     try {
       final headers = await _getHeaders();
-      final response = await _dio.post(
-        '/api/groups',
-        data: {
-          'name': name,
-          'description': description,
-        },
-        options: Options(headers: headers),
-      );
+      final response = await _dio.post('/api/groups', data: {'name': name, 'description': description}, options: Options(headers: headers));
       return response.data;
     } catch (e) {
       return {'code': 500, 'message': '创建失败'};
     }
   }
 
-  // 加入群组
+  // 2. 加入群组
   Future<Map<String, dynamic>> joinGroup(String inviteCode) async {
     try {
       final headers = await _getHeaders();
-      final response = await _dio.post(
-        '/api/groups/join',
-        data: {'inviteCode': inviteCode},
-        options: Options(headers: headers),
-      );
+      final response = await _dio.post('/api/groups/join', data: {'inviteCode': inviteCode}, options: Options(headers: headers));
       return response.data;
     } catch (e) {
       return {'code': 500, 'message': '加入失败'};
     }
   }
 
-  // 获取我创建的群组
+  // 3. 获取创建的群组
   Future<List<Group>> getCreatedGroups() async {
     try {
       final headers = await _getHeaders();
@@ -68,7 +57,7 @@ class GroupService {
     }
   }
 
-  // 获取我加入的群组
+  // 4. 获取加入的群组
   Future<List<Group>> getJoinedGroups() async {
     try {
       final headers = await _getHeaders();
@@ -83,7 +72,7 @@ class GroupService {
     }
   }
 
-  // 获取群组成员列表 (New)
+  // 5. 获取成员列表
   Future<List<GroupMember>> getGroupMembers(String groupId) async {
     try {
       final headers = await _getHeaders();
@@ -95,6 +84,36 @@ class GroupService {
       return [];
     } catch (e) {
       return [];
+    }
+  }
+
+  // 6. 批量移除成员 (New)
+  Future<bool> removeMembers(String groupId, List<String> userIds) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await _dio.delete(
+        '/api/groups/$groupId/members',
+        data: {'userIds': userIds},
+        options: Options(headers: headers),
+      );
+      return response.statusCode == 200 && response.data['code'] == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // 7. 更新成员角色 (New)
+  Future<bool> updateMemberRole(String groupId, String userId, String newRole) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await _dio.put(
+        '/api/groups/$groupId/members/$userId/role',
+        data: {'role': newRole},
+        options: Options(headers: headers),
+      );
+      return response.statusCode == 200 && response.data['code'] == 200;
+    } catch (e) {
+      return false;
     }
   }
 }
