@@ -10,7 +10,9 @@ class Schedule {
   final String category;
   final bool isAllDay;
   final bool isAiGenerated;
-  final bool isImportant; // 新增重要标志
+  final bool isImportant;
+  final String? groupId; 
+  final String? groupName; // 新增：日程所属群组名称
 
   Schedule({
     this.scheduleId,
@@ -22,7 +24,9 @@ class Schedule {
     required this.category,
     this.isAllDay = false,
     this.isAiGenerated = false,
-    this.isImportant = false, // 默认不重要
+    this.isImportant = false,
+    this.groupId,
+    this.groupName,
   });
 
   Map<String, dynamic> toJson() {
@@ -37,6 +41,8 @@ class Schedule {
       'isAllDay': isAllDay,
       'isAiGenerated': isAiGenerated,
       'isImportant': isImportant,
+      'groupId': groupId,
+      'groupName': groupName, // 同步到 JSON
     };
   }
 
@@ -52,6 +58,8 @@ class Schedule {
       isAllDay: json['isAllDay'] ?? false,
       isAiGenerated: json['isAiGenerated'] ?? false,
       isImportant: json['isImportant'] ?? false,
+      groupId: json['groupId']?.toString(),
+      groupName: json['groupName']?.toString(),
     );
   }
 }

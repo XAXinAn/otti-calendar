@@ -31,7 +31,6 @@ class _GroupManagementPageState extends State<GroupManagementPage> {
       final created = await _groupService.getCreatedGroups();
       final joined = await _groupService.getJoinedGroups();
       
-      // 前端排序：最新创建/加入的在前面 (降序)
       created.sort((a, b) => (b.createdAt ?? 0).compareTo(a.createdAt ?? 0));
       joined.sort((a, b) => (b.joinedAt ?? 0).compareTo(a.joinedAt ?? 0));
 
@@ -45,6 +44,30 @@ class _GroupManagementPageState extends State<GroupManagementPage> {
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  // 统一的中间提示框
+  void _showMiddleTip(String message) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent,
+      builder: (ctx) {
+        Future.delayed(const Duration(seconds: 1), () {
+          if (Navigator.of(ctx).canPop()) Navigator.pop(ctx);
+        });
+        return Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(color: Colors.black.withOpacity(0.7), borderRadius: BorderRadius.circular(12)),
+              child: Text(message, style: const TextStyle(color: Colors.white, fontSize: 14)),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -66,6 +89,8 @@ class _GroupManagementPageState extends State<GroupManagementPage> {
         ? const Center(child: CircularProgressIndicator())
         : RefreshIndicator(
             onRefresh: _fetchGroups,
+            backgroundColor: Colors.white,
+            color: Colors.blue,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               child: Column(
@@ -84,11 +109,17 @@ class _GroupManagementPageState extends State<GroupManagementPage> {
                       children: [
                         _buildActionItem('创建群组', () async {
                           final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => const CreateGroupPage()));
-                          if (result == true) _fetchGroups();
+                          if (result == true) {
+                            _showMiddleTip('创建群组成功');
+                            _fetchGroups();
+                          }
                         }),
                         _buildActionItem('加入群组', () async {
                           final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => const JoinGroupPage()));
-                          if (result == true) _fetchGroups();
+                          if (result == true) {
+                            _showMiddleTip('成功加入群组');
+                            _fetchGroups();
+                          }
                         }),
                         
                         const Padding(
@@ -118,23 +149,16 @@ class _GroupManagementPageState extends State<GroupManagementPage> {
     if (groups.isEmpty) {
       return _buildEmptyPlaceholder();
     }
-
-    // 默认显示前 5 个
     final displayGroups = groups.length > 5 ? groups.take(5).toList() : groups;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         ...displayGroups.map((g) => _buildGroupItem(g.name, () {
           Navigator.push(context, MaterialPageRoute(builder: (context) => GroupDetailPage(group: g)));
         })),
-        // 如果超过 5 个，显示“更多”并跳转到新页面
         if (groups.length > 5)
           _buildGroupItem('更多', () {
-            Navigator.push(
-              context, 
-              MaterialPageRoute(builder: (context) => GroupListPage(title: title, groups: groups))
-            );
+            Navigator.push(context, MaterialPageRoute(builder: (context) => GroupListPage(title: title, groups: groups)));
           }, isLast: isLastSection),
       ],
     );

@@ -13,9 +13,9 @@ class GroupListPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),
       appBar: AppBar(
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
         centerTitle: true,
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: Colors.black,
         leading: IconButton(
@@ -23,28 +23,89 @@ class GroupListPage extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: groups.isEmpty
-          ? const Center(child: Text('暂无群组', style: TextStyle(color: Colors.grey)))
-          : ListView.separated(
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            // 白色大圆角容器
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 24),
               padding: const EdgeInsets.symmetric(vertical: 20),
-              itemCount: groups.length,
-              separatorBuilder: (context, index) => const Divider(height: 1, indent: 24, endIndent: 24),
-              itemBuilder: (context, index) {
-                final group = groups[index];
-                return ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                  title: Text(group.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-                  subtitle: group.description != null ? Text(group.description!, maxLines: 1, overflow: TextOverflow.ellipsis) : null,
-                  trailing: const Icon(Icons.chevron_right, color: Colors.black12),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => GroupDetailPage(group: group)),
-                    );
-                  },
-                );
-              },
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(32),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.02),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  )
+                ],
+              ),
+              child: groups.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.all(40.0),
+                      child: Center(
+                        child: Text('暂无群组', style: TextStyle(color: Colors.black12, fontSize: 16)),
+                      ),
+                    )
+                  : Column(
+                      children: List.generate(groups.length, (index) {
+                        final group = groups[index];
+                        final isLast = index == groups.length - 1;
+                        return _buildGroupItem(context, group, isLast: isLast);
+                      }),
+                    ),
             ),
+            const SizedBox(height: 40),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGroupItem(BuildContext context, Group group, {bool isLast = false}) {
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => GroupDetailPage(group: group)),
+        );
+      },
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        group.name,
+                        style: const TextStyle(fontSize: 17, color: Colors.black87, fontWeight: FontWeight.w500),
+                      ),
+                      if (group.description != null && group.description!.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          group.description!,
+                          style: const TextStyle(fontSize: 13, color: Colors.black26),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: Colors.black12, size: 20),
+              ],
+            ),
+          ),
+          if (!isLast)
+            const Divider(height: 1, indent: 24, endIndent: 24, color: Color(0xFFF0F2F5)),
+        ],
+      ),
     );
   }
 }

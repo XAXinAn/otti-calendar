@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:otti_calendar/features/profile/profile_edit_page.dart';
-import 'package:otti_calendar/features/group/pages/group_management_page.dart'; // 引入群组管理页
+import 'package:otti_calendar/features/group/pages/group_management_page.dart';
 import 'package:otti_calendar/services/auth_service.dart';
 import 'package:otti_calendar/models/auth_response.dart';
 
@@ -31,6 +31,13 @@ class _MainDrawerState extends State<MainDrawer> {
       setState(() {
         _displayName = '未登录';
       });
+    }
+  }
+
+  Future<void> _handleLogout() async {
+    await _authService.logout();
+    if (mounted) {
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
     }
   }
 
@@ -91,7 +98,6 @@ class _MainDrawerState extends State<MainDrawer> {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     children: [
-                      // 修改：添加点击跳转逻辑
                       _buildFunctionItem(Icons.group_outlined, '群组管理', () {
                         Navigator.pop(context);
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const GroupManagementPage()));
@@ -107,7 +113,7 @@ class _MainDrawerState extends State<MainDrawer> {
           ),
           const SizedBox(height: 20),
 
-          // 3. 设置
+          // 3. 设置卡片
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Container(
@@ -120,6 +126,23 @@ class _MainDrawerState extends State<MainDrawer> {
                 title: const Text('设置', style: TextStyle(fontSize: 16)),
                 trailing: const Icon(Icons.chevron_right, color: Colors.grey),
                 onTap: () { /* TODO */ },
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // 4. 退出登录卡片 (放在设置下方)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ListTile(
+                leading: const Icon(Icons.logout, color: Colors.redAccent),
+                title: const Text('退出登录', style: TextStyle(fontSize: 16, color: Colors.redAccent)),
+                onTap: _handleLogout,
               ),
             ),
           ),

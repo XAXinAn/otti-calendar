@@ -19,6 +19,9 @@ class ScheduleListView extends StatelessWidget {
         final scheduleMap = schedules[index];
         final schedule = Schedule.fromJson(scheduleMap);
         
+        // 修改：使用模型中的 groupName 字段显示具体群组名称
+        final String sourceName = schedule.groupName ?? (schedule.groupId == null ? '个人' : '群组');
+
         const categoryStyles = {
           '工作': {'color': Colors.blue, 'icon': Icons.work_outline},
           '学习': {'color': Colors.green, 'icon': Icons.school_outlined},
@@ -39,9 +42,7 @@ class ScheduleListView extends StatelessWidget {
           onTap: () async {
             final result = await Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (context) => ScheduleDetailPage(schedule: schedule),
-              ),
+              MaterialPageRoute(builder: (context) => ScheduleDetailPage(schedule: schedule)),
             );
             if (result != null && onActionComplete != null) {
               onActionComplete!(result as String);
@@ -53,29 +54,17 @@ class ScheduleListView extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 左侧时间+重要性标志区域
                 SizedBox(
                   width: 50,
                   child: Column(
                     children: [
-                      Text(
-                        displayTime, 
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87)
-                      ),
+                      Text(displayTime, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87)),
                       const SizedBox(height: 8),
-                      // 如果重要，显示红色感叹号
                       if (schedule.isImportant)
                         Container(
                           padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.priority_high, 
-                            color: Colors.white, 
-                            size: 14,
-                          ),
+                          decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                          child: const Icon(Icons.priority_high, color: Colors.white, size: 14),
                         ),
                     ],
                   ),
@@ -84,45 +73,40 @@ class ScheduleListView extends StatelessWidget {
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border(left: BorderSide(color: (style['color'] as Color).withOpacity(0.3), width: 3))
-                    ),
+                    decoration: BoxDecoration(border: Border(left: BorderSide(color: (style['color'] as Color).withOpacity(0.3), width: 3))),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: (style['color'] as Color).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                schedule.category, 
-                                style: TextStyle(color: style['color'] as Color, fontWeight: FontWeight.bold, fontSize: 12)
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(color: (style['color'] as Color).withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(schedule.category, style: TextStyle(color: style['color'] as Color, fontWeight: FontWeight.bold, fontSize: 12)),
+                                  const SizedBox(width: 4),
+                                  Icon(style['icon'] as IconData, size: 14, color: style['color'] as Color),
+                                ],
                               ),
-                              const SizedBox(width: 4),
-                              Icon(style['icon'] as IconData, size: 14, color: style['color'] as Color),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              '来源: $sourceName', 
+                              style: const TextStyle(color: Colors.black26, fontSize: 13)
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 8),
-                        Text(
-                          schedule.title, 
-                          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w500, color: Colors.black)
-                        ),
+                        Text(schedule.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w500, color: Colors.black)),
                         if (schedule.location != null && schedule.location!.isNotEmpty) ...[
                           const SizedBox(height: 6),
                           Row(
                             children: [
                               const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
                               const SizedBox(width: 4),
-                              Text(
-                                schedule.location!, 
-                                style: const TextStyle(color: Colors.grey, fontSize: 13)
-                              ),
+                              Text(schedule.location!, style: const TextStyle(color: Colors.grey, fontSize: 13)),
                             ],
                           ),
                         ],

@@ -37,13 +37,14 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     }
   }
 
+  // 统一的保存同步逻辑
   Future<void> _saveChanges(String field, String newValue) async {
     if (_user == null) return;
 
     final newUser = UserInfo(
       userId: _user!.userId,
       username: field == '昵称' ? newValue : _username,
-      phone: _phone, // 手机号保持不变
+      phone: _phone,
       gender: field == '性别' ? newValue : _gender,
       role: _user!.role,
       avatar: _user!.avatar,
@@ -128,47 +129,37 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // 白色主卡片
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 24),
                 padding: const EdgeInsets.fromLTRB(24, 40, 24, 20),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(32),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 20, offset: const Offset(0, 10))],
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.02),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    )
+                  ],
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.coffee_rounded, size: 120, color: Colors.grey.shade300),
+                    Icon(
+                      Icons.coffee_rounded,
+                      size: 120,
+                      color: Colors.grey.shade300,
+                    ),
                     const SizedBox(height: 40),
                     _buildInfoRow('昵称', _username, _editNickname),
                     _buildInfoRow('性别', _gender, _editGender),
-                    _buildInfoRow('手机号', _phone, null, isLast: true), // 禁用修改：onTap 传 null
+                    _buildInfoRow('手机号', _phone, null, isLast: true),
                   ],
                 ),
               ),
-              const SizedBox(height: 40),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 55,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      await _authService.logout();
-                      if (mounted) Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFBCC8ED),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                    ),
-                    child: const Text('退出登录', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 40), // 保持一定的底部间距
             ],
           ),
         ),

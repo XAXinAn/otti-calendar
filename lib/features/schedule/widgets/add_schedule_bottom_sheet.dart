@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:otti_calendar/features/common/widgets/custom_date_picker.dart';
 import 'package:otti_calendar/features/common/widgets/custom_time_picker.dart';
 import 'package:otti_calendar/features/schedule/pages/category_picker_page.dart';
+import 'package:otti_calendar/models/group.dart';
 import 'package:otti_calendar/models/schedule.dart';
-import 'package:otti_calendar/services/ocr_service.dart';
+import 'package:otti_calendar/services/group_service.dart';
 import 'package:otti_calendar/services/schedule_service.dart';
 
 class AddScheduleBottomSheet extends StatefulWidget {
@@ -25,15 +25,16 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
   bool _isAiSendEnabled = false;
   bool _isLoading = false;
 
-  final OcrService _ocrService = const OcrService();
   final ScheduleService _scheduleService = ScheduleService();
-  final ImagePicker _picker = ImagePicker();
+  final GroupService _groupService = GroupService();
   
-  bool _isRecognizing = false;
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
   String? _selectedCategory;
   bool _isImportant = false;
+  
+  String? _selectedGroupId;
+  String? _selectedGroupName;
 
   static const Map<String, Color> _categoryColors = {
     '工作': Color(0xFF2196F3),
@@ -57,12 +58,9 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
     _aiTextController = TextEditingController();
 
     _manualTitleController.addListener(_updateManualSendState);
-
     _aiTextController.addListener(() {
       final isEnabled = _aiTextController.text.isNotEmpty;
-      if (isEnabled != _isAiSendEnabled) {
-        setState(() => _isAiSendEnabled = isEnabled);
-      }
+      if (isEnabled != _isAiSendEnabled) setState(() => _isAiSendEnabled = isEnabled);
     });
   }
 
@@ -71,20 +69,23 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
         _selectedDate != null &&
         _selectedTime != null &&
         _selectedCategory != null;
-    
-    if (isEnabled != _isManualSendEnabled) {
-      setState(() => _isManualSendEnabled = isEnabled);
-    }
+    if (isEnabled != _isManualSendEnabled) setState(() => _isManualSendEnabled = isEnabled);
   }
 
   @override
   void dispose() {
-    // 修正：使用正确的变量名
     _manualTitleController.dispose();
     _manualLocationController.dispose();
     _aiTextController.dispose();
     _tabController.dispose();
     super.dispose();
+  }
+
+  String _formatTime(TimeOfDay time) {
+    final period = time.period == DayPeriod.am ? '上午' : '下午';
+    final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
+    final minute = time.minute.toString().padLeft(2, '0');
+    return '$period $hour:$minute';
   }
 
   void _showDatePicker() {
@@ -98,7 +99,7 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
         child: Column(
           children: [
             _buildPickerHeader('选择日期', () {
-              setState(() => _selectedDate = tempDate);
+              if (mounted) setState(() => _selectedDate = tempDate);
               _updateManualSendState();
               Navigator.pop(context);
             }),
@@ -120,7 +121,7 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
         child: Column(
           children: [
             _buildPickerHeader('选择时间', () {
-              setState(() => _selectedTime = tempTime);
+              if (mounted) setState(() => _selectedTime = tempTime);
               _updateManualSendState();
               Navigator.pop(context);
             }),
@@ -131,11 +132,64 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
     );
   }
 
-  String _formatTime(TimeOfDay time) {
-    final period = time.period == DayPeriod.am ? '上午' : '下午';
-    final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
-    final minute = time.minute.toString().padLeft(2, '0');
-    return '$period $hour:$minute';
+  void _showGroupPicker() async {
+    // 异步拉取数据
+    final createdGroups = await _groupService.getCreatedGroups();
+    final joinedGroups = await _groupService.getJoinedGroups();
+    final allGroups = [...createdGroups, ...joinedGroups];
+
+    // 关键修复：await 之后必须判断 mounted
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.45,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Text('选择日程归属', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView(
+                children: [
+                  ListTile(
+                    leading: const CircleAvatar(backgroundColor: Colors.blue, child: Icon(Icons.person, color: Colors.white)),
+                    title: const Text('个人'),
+                    trailing: (_selectedGroupName == '个人' || _selectedGroupName == null) ? const Icon(Icons.check, color: Colors.blue) : null,
+                    onTap: () {
+                      if (mounted) {
+                        setState(() { _selectedGroupId = null; _selectedGroupName = '个人'; });
+                      }
+                      Navigator.pop(context);
+                    },
+                  ),
+                  ...allGroups.map((group) => ListTile(
+                    leading: const CircleAvatar(backgroundColor: Colors.orange, child: Icon(Icons.group, color: Colors.white)),
+                    title: Text(group.name),
+                    trailing: _selectedGroupId == group.groupId ? const Icon(Icons.check, color: Colors.blue) : null,
+                    onTap: () {
+                      if (mounted) {
+                        setState(() { _selectedGroupId = group.groupId; _selectedGroupName = group.name; });
+                      }
+                      Navigator.pop(context);
+                    },
+                  )),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _pickCategory() async {
@@ -143,15 +197,14 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
       context,
       MaterialPageRoute(builder: (context) => CategoryPickerPage(selectedCategory: _selectedCategory)),
     );
-    if (result != null) {
+    if (result != null && mounted) {
       setState(() => _selectedCategory = result);
       _updateManualSendState();
     }
   }
 
   Future<void> _handleSubmit() async {
-    if (!_isManualSendEnabled) return;
-
+    if (!_isManualSendEnabled || _isLoading) return;
     setState(() => _isLoading = true);
 
     final schedule = Schedule(
@@ -162,18 +215,20 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
       category: _selectedCategory!,
       isAllDay: false,
       isImportant: _isImportant,
+      groupId: _selectedGroupId,
     );
 
     final success = await _scheduleService.createSchedule(schedule);
 
+    // 关键修复：await 之后判断 mounted
+    if (!mounted) return;
+    
     setState(() => _isLoading = false);
 
-    if (mounted) {
-      if (success) {
-        Navigator.pop(context, true); 
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('日程添加失败')));
-      }
+    if (success) {
+      Navigator.pop(context, true); 
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('日程添加失败')));
     }
   }
 
@@ -205,16 +260,31 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
     );
   }
 
+  Widget _buildActionItem(IconData icon, String label, Color color, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 4),
+            Text(label, style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.w500)),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
-        height: MediaQuery.of(context).size.height * 0.38,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
-        ),
+        height: MediaQuery.of(context).size.height * 0.45,
+        decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24))),
         child: Column(
           children: [
             TabBar(
@@ -226,12 +296,7 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
               indicatorSize: TabBarIndicatorSize.label,
               indicatorWeight: 2.5,
             ),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [_buildManualAddTab(), _buildAiAssistantTab()],
-              ),
-            ),
+            Expanded(child: TabBarView(controller: _tabController, children: [_buildManualAddTab(), _buildAiAssistantTab()])),
           ],
         ),
       ),
@@ -239,7 +304,7 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
   }
 
   Widget _buildManualAddTab() {
-    final bool hasTags = _selectedDate != null || _selectedTime != null || _selectedCategory != null;
+    final bool hasTags = _selectedDate != null || _selectedTime != null || _selectedCategory != null || _selectedGroupName != null;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
@@ -265,16 +330,24 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
+                  if (_selectedGroupName != null) ...[
+                    _buildTag('# $_selectedGroupName', Colors.indigoAccent, () { 
+                      if (mounted) {
+                        setState(() { _selectedGroupId = null; _selectedGroupName = null; }); 
+                      }
+                    }),
+                    const SizedBox(width: 6),
+                  ],
                   if (_selectedDate != null) ...[
-                    _buildTag('# ${DateFormat('yyyy年M月d日', 'zh_CN').format(_selectedDate!)}', const Color(0xFFEF5350), () { setState(() => _selectedDate = null); _updateManualSendState(); }),
+                    _buildTag('# ${DateFormat('yyyy年M月d日', 'zh_CN').format(_selectedDate!)}', const Color(0xFFEF5350), () { if (mounted) setState(() => _selectedDate = null); _updateManualSendState(); }),
                     const SizedBox(width: 6),
                   ],
                   if (_selectedTime != null) ...[
-                    _buildTag('# ${_formatTime(_selectedTime!)}', const Color(0xFFFFC107), () { setState(() => _selectedTime = null); _updateManualSendState(); }),
+                    _buildTag('# ${_formatTime(_selectedTime!)}', const Color(0xFFFFC107), () { if (mounted) setState(() => _selectedTime = null); _updateManualSendState(); }),
                     const SizedBox(width: 6),
                   ],
                   if (_selectedCategory != null)
-                    _buildTag('# $_selectedCategory', _categoryColors[_selectedCategory] ?? Colors.grey, () { setState(() => _selectedCategory = null); _updateManualSendState(); }),
+                    _buildTag('# $_selectedCategory', _categoryColors[_selectedCategory] ?? Colors.grey, () { if (mounted) setState(() => _selectedCategory = null); _updateManualSendState(); }),
                 ],
               ),
             ),
@@ -282,24 +355,30 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
           ],
           Row(
             children: [
-              IconButton(icon: const Icon(Icons.calendar_today_outlined, color: Color(0xFFEF5350), size: 24), onPressed: _showDatePicker, padding: EdgeInsets.zero, constraints: const BoxConstraints()),
-              const SizedBox(width: 12), 
-              IconButton(icon: const Icon(Icons.access_time_outlined, color: Color(0xFFFFC107), size: 24), onPressed: _showTimePicker, padding: EdgeInsets.zero, constraints: const BoxConstraints()),
-              const SizedBox(width: 12), 
-              IconButton(icon: const Icon(Icons.label_outline, color: Colors.blue, size: 24), onPressed: _pickCategory, padding: EdgeInsets.zero, constraints: const BoxConstraints()),
-              const SizedBox(width: 12),
-              GestureDetector(
-                onTap: () {
-                  setState(() => _isImportant = !_isImportant);
-                  _updateManualSendState();
-                },
-                child: Icon(
-                  _isImportant ? Icons.star_rounded : Icons.star_outline_rounded,
-                  color: _isImportant ? Colors.orange : Colors.black12,
-                  size: 26,
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildActionItem(Icons.calendar_today_outlined, '日期', const Color(0xFFEF5350), _showDatePicker),
+                      const SizedBox(width: 8),
+                      _buildActionItem(Icons.access_time_outlined, '时间', const Color(0xFFFFC107), _showTimePicker),
+                      const SizedBox(width: 8),
+                      _buildActionItem(Icons.label_outline, '分类', Colors.blue, _pickCategory),
+                      const SizedBox(width: 8),
+                      _buildActionItem(Icons.groups_outlined, '归属', Colors.indigoAccent, _showGroupPicker),
+                      const SizedBox(width: 8),
+                      _buildActionItem(
+                        _isImportant ? Icons.star_rounded : Icons.star_outline_rounded, 
+                        '重要', 
+                        _isImportant ? Colors.orange : Colors.black26, 
+                        () { if (mounted) setState(() => _isImportant = !_isImportant); _updateManualSendState(); }
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 12),
               _isLoading 
                 ? const SizedBox(height: 20, width: 24, child: CircularProgressIndicator(strokeWidth: 2))
                 : IconButton(
@@ -311,6 +390,8 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
                   ),
             ],
           ),
+          const SizedBox(height: 4),
+          const Text('左滑添加更多标签', style: TextStyle(color: Colors.black26, fontSize: 11)),
         ],
       ),
     );

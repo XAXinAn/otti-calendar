@@ -5,6 +5,7 @@ import 'package:otti_calendar/features/common/widgets/custom_time_picker.dart';
 import 'package:otti_calendar/features/schedule/pages/category_picker_page.dart';
 import 'package:otti_calendar/models/schedule.dart';
 import 'package:otti_calendar/services/schedule_service.dart';
+import 'package:otti_calendar/services/group_service.dart'; // 引入群组服务
 
 class ScheduleDetailPage extends StatefulWidget {
   final Schedule schedule;
@@ -18,10 +19,13 @@ class ScheduleDetailPage extends StatefulWidget {
 class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
   late Schedule _currentSchedule;
   final ScheduleService _scheduleService = ScheduleService();
+  final GroupService _groupService = GroupService();
 
   late TextEditingController _titleController;
   late TextEditingController _locationController;
   late bool _isImportant;
+  String? _selectedGroupId;
+  String _selectedGroupName = '正在加载...';
   
   bool _isSaving = false;
 
@@ -58,6 +62,28 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
     _titleController = TextEditingController(text: _currentSchedule.title);
     _locationController = TextEditingController(text: _currentSchedule.location ?? '');
     _isImportant = _currentSchedule.isImportant;
+    _selectedGroupId = _currentSchedule.groupId;
+    _loadGroupName();
+  }
+
+  // 获取当前归属的名字
+  Future<void> _loadGroupName() async {
+    if (_selectedGroupId == null) {
+      if (mounted) setState(() => _selectedGroupName = '个人');
+      return;
+    }
+    // 实际开发中可以从本地缓存或群组列表中匹配，这里模拟获取
+    final created = await _groupService.getCreatedGroups();
+    final joined = await _groupService.getJoinedGroups();
+    final allGroups = [...created, ...joined];
+    
+    if (mounted) {
+      final target = allGroups.cast<dynamic>().firstWhere(
+        (g) => g.groupId == _selectedGroupId, 
+        orElse: () => null
+      );
+      setState(() => _selectedGroupName = target != null ? target.name : '未知群组');
+    }
   }
 
   @override
@@ -97,12 +123,65 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
       category: _currentSchedule.category,
       isAllDay: _currentSchedule.isAllDay,
       isImportant: _isImportant,
+      groupId: _selectedGroupId, // 同步新的归属
     );
     final success = await _scheduleService.updateSchedule(updated);
     if (mounted) {
       setState(() => _isSaving = false);
       if (success) Navigator.pop(context, 'updated');
     }
+  }
+
+  // 归属修改选择器
+  void _editGroup() async {
+    final createdGroups = await _groupService.getCreatedGroups();
+    final joinedGroups = await _groupService.getJoinedGroups();
+    final allGroups = [...createdGroups, ...joinedGroups];
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.45,
+        decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        child: Column(
+          children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Text('修改日程归属', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView(
+                children: [
+                  ListTile(
+                    leading: const CircleAvatar(backgroundColor: Colors.blue, child: Icon(Icons.person, color: Colors.white)),
+                    title: const Text('个人'),
+                    trailing: _selectedGroupId == null ? const Icon(Icons.check, color: Colors.blue) : null,
+                    onTap: () {
+                      setState(() { _selectedGroupId = null; _selectedGroupName = '个人'; });
+                      Navigator.pop(context);
+                    },
+                  ),
+                  ...allGroups.map((group) => ListTile(
+                    leading: const CircleAvatar(backgroundColor: Colors.orange, child: Icon(Icons.group, color: Colors.white)),
+                    title: Text(group.name),
+                    trailing: _selectedGroupId == group.groupId ? const Icon(Icons.check, color: Colors.blue) : null,
+                    onTap: () {
+                      setState(() { _selectedGroupId = group.groupId; _selectedGroupName = group.name; });
+                      Navigator.pop(context);
+                    },
+                  )),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _handleDelete() async {
@@ -172,6 +251,7 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
                   category: _currentSchedule.category,
                   isAllDay: _currentSchedule.isAllDay,
                   isImportant: _isImportant,
+                  groupId: _selectedGroupId,
                 );
               });
               Navigator.pop(context);
@@ -207,6 +287,7 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
                   category: _currentSchedule.category,
                   isAllDay: false,
                   isImportant: _isImportant,
+                  groupId: _selectedGroupId,
                 );
               });
               Navigator.pop(context);
@@ -284,6 +365,7 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
                               category: result,
                               isAllDay: _currentSchedule.isAllDay,
                               isImportant: _isImportant,
+                              groupId: _selectedGroupId,
                             );
                           });
                         }
@@ -317,7 +399,9 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
                         decoration: const InputDecoration(hintText: '未设置地点', hintStyle: TextStyle(color: Colors.black12), border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
                       )
                     ),
-                    // 重要性开关，关闭时黑边白底
+                    // 新增：归属修改行
+                    _buildDetailRow(Icons.groups_rounded, '归属', value: _selectedGroupName, onTap: _editGroup),
+                    
                     _buildDetailRow(Icons.star_rounded, '重要', 
                       showDivider: false,
                       child: Align(
@@ -325,15 +409,15 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
                         child: Switch(
                           value: _isImportant,
                           onChanged: (val) => setState(() => _isImportant = val),
-                          activeColor: Colors.white, // 开启时滑块白色
-                          activeTrackColor: brandColor, // 开启时背景颜色
-                          inactiveThumbColor: Colors.black, // 关闭时滑块黑色
-                          inactiveTrackColor: Colors.white, // 关闭时背景白色
+                          activeColor: Colors.white,
+                          activeTrackColor: brandColor,
+                          inactiveThumbColor: Colors.black,
+                          inactiveTrackColor: Colors.white,
                           trackOutlineColor: WidgetStateProperty.resolveWith<Color?>((states) {
                             if (states.contains(WidgetState.selected)) {
                               return Colors.transparent;
                             }
-                            return Colors.black; // 关闭时显示黑边
+                            return Colors.black;
                           }),
                         ),
                       )

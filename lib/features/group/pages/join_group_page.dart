@@ -22,7 +22,7 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
   Future<void> _handleJoin() async {
     final code = _codeController.text.trim();
     if (code.isEmpty) {
-      _showTip('请输入邀请码');
+      _showErrorTip('请输入邀请码');
       return;
     }
 
@@ -32,33 +32,31 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
 
     if (mounted) {
       if (response['code'] == 200) {
-        _showMiddleTip('成功加入群组');
-        Future.delayed(const Duration(seconds: 1), () {
-          Navigator.pop(context, true); 
-        });
+        // 成功后直接返回，由主页显示提示
+        Navigator.pop(context, true); 
       } else {
-        _showTip(response['message'] ?? '加入失败，请检查邀请码');
+        _showErrorTip(response['message'] ?? '加入失败，请检查邀请码');
       }
     }
   }
 
-  void _showTip(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  }
-
-  void _showMiddleTip(String message) {
+  // 仅用于错误提示（不退出页面时使用）
+  void _showErrorTip(String message) {
+    if (!mounted) return;
     showDialog(
       context: context,
       barrierColor: Colors.transparent,
       builder: (ctx) {
-        Future.delayed(const Duration(seconds: 1), () => Navigator.of(ctx).pop());
+        Future.delayed(const Duration(seconds: 1), () {
+          if (Navigator.of(ctx).canPop()) Navigator.pop(ctx);
+        });
         return Center(
           child: Material(
             color: Colors.transparent,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               decoration: BoxDecoration(color: Colors.black.withOpacity(0.7), borderRadius: BorderRadius.circular(12)),
-              child: Text(message, style: const TextStyle(color: Colors.white, fontSize: 15)),
+              child: Text(message, style: const TextStyle(color: Colors.white, fontSize: 14)),
             ),
           ),
         );
@@ -84,7 +82,7 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
           _isLoading
               ? const Center(child: Padding(padding: EdgeInsets.all(16.0), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))))
               : IconButton(
-                  icon: const Icon(Icons.check, size: 28, color: Colors.black54), // 修改为灰色
+                  icon: const Icon(Icons.check, size: 28, color: Colors.black54),
                   onPressed: _handleJoin,
                 ),
           const SizedBox(width: 8),
