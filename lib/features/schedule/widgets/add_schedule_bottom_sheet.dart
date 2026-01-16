@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:otti_calendar/features/common/widgets/custom_date_picker.dart';
 import 'package:otti_calendar/features/common/widgets/custom_time_picker.dart';
 import 'package:otti_calendar/features/schedule/pages/category_picker_page.dart';
@@ -7,6 +8,7 @@ import 'package:otti_calendar/models/group.dart';
 import 'package:otti_calendar/models/schedule.dart';
 import 'package:otti_calendar/services/group_service.dart';
 import 'package:otti_calendar/services/schedule_service.dart';
+import 'package:otti_calendar/services/ocr_service.dart';
 
 class AddScheduleBottomSheet extends StatefulWidget {
   const AddScheduleBottomSheet({super.key});
@@ -24,9 +26,12 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
   bool _isManualSendEnabled = false;
   bool _isAiSendEnabled = false;
   bool _isLoading = false;
+  bool _isOcrLoading = false;
 
   final ScheduleService _scheduleService = ScheduleService();
   final GroupService _groupService = GroupService();
+  final OcrService _ocrService = const OcrService();
+  final ImagePicker _imagePicker = ImagePicker();
   
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
@@ -52,7 +57,7 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this, initialIndex: 0);
+    _tabController = TabController(length: 2, vsync: this, initialIndex: 1);
     _manualTitleController = TextEditingController();
     _manualLocationController = TextEditingController();
     _aiTextController = TextEditingController();
@@ -79,6 +84,36 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
     _aiTextController.dispose();
     _tabController.dispose();
     super.dispose();
+  }
+
+  // OCR 处理核心逻辑
+  Future<void> _handleImageOcr(ImageSource source) async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(source: source);
+      if (image == null) return;
+
+      setState(() {
+        _isOcrLoading = true;
+        _aiTextController.text = '正在识别图片内容...';
+      });
+
+      final String recognizedText = await _ocrService.recognize(image.path);
+      
+      if (mounted) {
+        setState(() {
+          _isOcrLoading = false;
+          _aiTextController.text = recognizedText.isNotEmpty ? recognizedText : '未能识别出文字，请尝试输入或重新拍照';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isOcrLoading = false;
+          _aiTextController.text = '';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('OCR 识别出错: $e')));
+      }
+    }
   }
 
   String _formatTime(TimeOfDay time) {
@@ -133,12 +168,10 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
   }
 
   void _showGroupPicker() async {
-    // 异步拉取数据
     final createdGroups = await _groupService.getCreatedGroups();
     final joinedGroups = await _groupService.getJoinedGroups();
     final allGroups = [...createdGroups, ...joinedGroups];
 
-    // 关键修复：await 之后必须判断 mounted
     if (!mounted) return;
 
     showModalBottomSheet(
@@ -166,9 +199,7 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
                     title: const Text('个人'),
                     trailing: (_selectedGroupName == '个人' || _selectedGroupName == null) ? const Icon(Icons.check, color: Colors.blue) : null,
                     onTap: () {
-                      if (mounted) {
-                        setState(() { _selectedGroupId = null; _selectedGroupName = '个人'; });
-                      }
+                      if (mounted) setState(() { _selectedGroupId = null; _selectedGroupName = '个人'; });
                       Navigator.pop(context);
                     },
                   ),
@@ -177,9 +208,7 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
                     title: Text(group.name),
                     trailing: _selectedGroupId == group.groupId ? const Icon(Icons.check, color: Colors.blue) : null,
                     onTap: () {
-                      if (mounted) {
-                        setState(() { _selectedGroupId = group.groupId; _selectedGroupName = group.name; });
-                      }
+                      if (mounted) setState(() { _selectedGroupId = group.groupId; _selectedGroupName = group.name; });
                       Navigator.pop(context);
                     },
                   )),
@@ -219,10 +248,7 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
     );
 
     final success = await _scheduleService.createSchedule(schedule);
-
-    // 关键修复：await 之后判断 mounted
     if (!mounted) return;
-    
     setState(() => _isLoading = false);
 
     if (success) {
@@ -283,8 +309,11 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
-        height: MediaQuery.of(context).size.height * 0.45,
-        decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24))),
+        height: MediaQuery.of(context).size.height * 0.4,
+        decoration: const BoxDecoration(
+          color: Colors.white, 
+          borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24))
+        ),
         child: Column(
           children: [
             TabBar(
@@ -295,6 +324,8 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
               indicatorColor: Colors.black,
               indicatorSize: TabBarIndicatorSize.label,
               indicatorWeight: 2.5,
+              labelStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              unselectedLabelStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.normal),
             ),
             Expanded(child: TabBarView(controller: _tabController, children: [_buildManualAddTab(), _buildAiAssistantTab()])),
           ],
@@ -331,11 +362,7 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
               child: Row(
                 children: [
                   if (_selectedGroupName != null) ...[
-                    _buildTag('# $_selectedGroupName', Colors.indigoAccent, () { 
-                      if (mounted) {
-                        setState(() { _selectedGroupId = null; _selectedGroupName = null; }); 
-                      }
-                    }),
+                    _buildTag('# $_selectedGroupName', Colors.indigoAccent, () { if (mounted) setState(() { _selectedGroupId = null; _selectedGroupName = null; }); }),
                     const SizedBox(width: 6),
                   ],
                   if (_selectedDate != null) ...[
@@ -399,38 +426,100 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
 
   Widget _buildAiAssistantTab() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+      padding: const EdgeInsets.fromLTRB(24, 12, 16, 20),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: TextField(
               controller: _aiTextController,
+              autofocus: true,
               maxLines: null,
+              readOnly: _isOcrLoading, 
+              style: const TextStyle(fontSize: 18, color: Colors.black87, fontWeight: FontWeight.w500),
               decoration: const InputDecoration(
                 hintText: '用一句话，快速添加日程、提醒或待办',
                 hintStyle: TextStyle(color: Colors.black26),
                 border: InputBorder.none,
+                contentPadding: EdgeInsets.zero,
               ),
             ),
           ),
+          const SizedBox(height: 12),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              TextButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.picture_in_picture_alt_outlined, size: 18, color: Colors.black54),
-                label: const Text('悬浮窗', style: TextStyle(fontSize: 13, color: Colors.black54)),
-                style: TextButton.styleFrom(backgroundColor: Colors.orange.shade50, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildAiActionButton(Icons.picture_in_picture_alt_outlined, '悬浮窗', () {}),
+                      const SizedBox(width: 16),
+                      _buildAiActionButton(Icons.mic_none_outlined, '语音输入', () {}),
+                      const SizedBox(width: 16),
+                      _buildAiActionButton(Icons.image_outlined, '相册上传', () => _handleImageOcr(ImageSource.gallery)),
+                      const SizedBox(width: 16),
+                      _buildAiActionButton(Icons.camera_alt_outlined, '拍照上传', () => _handleImageOcr(ImageSource.camera)),
+                      const SizedBox(width: 16),
+                    ],
+                  ),
+                ),
               ),
-              Row(
-                children: [
-                  IconButton(icon: const Icon(Icons.mic_none_outlined, size: 22, color: Colors.black54), onPressed: () {}),
-                  IconButton(icon: const Icon(Icons.near_me, size: 28), color: _isAiSendEnabled ? Colors.blue : Colors.grey, onPressed: _isAiSendEnabled ? () {} : null),
-                ],
-              )
+              const SizedBox(width: 8),
+              _isOcrLoading 
+                ? const Padding(
+                    padding: EdgeInsets.only(right: 8),
+                    child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blue)),
+                  )
+                : IconButton(
+                    onPressed: _isAiSendEnabled ? () {} : null,
+                    icon: Icon(
+                      Icons.near_me, 
+                      size: 32, 
+                      color: _isAiSendEnabled ? Colors.blue : Colors.black12
+                    ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Text('左滑发现更多功能', style: TextStyle(color: Colors.black26, fontSize: 11)),
+              const SizedBox(width: 12), // 紧贴文字，留一小段间隔
+              GestureDetector(
+                onTap: () {
+                  if (!_isOcrLoading) {
+                    _aiTextController.clear();
+                  }
+                },
+                child: const Text('一键清空', style: TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.w500)),
+              ),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAiActionButton(IconData icon, String label, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 24, color: Colors.black87),
+            const SizedBox(width: 6),
+            Text(
+              label, 
+              style: const TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.w500)
+            ),
+          ],
+        ),
       ),
     );
   }

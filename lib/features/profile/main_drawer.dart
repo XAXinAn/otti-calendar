@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:otti_calendar/features/profile/profile_edit_page.dart';
 import 'package:otti_calendar/features/group/pages/group_management_page.dart';
+import 'package:otti_calendar/features/profile/pages/statistics_page.dart'; // 新增导入
 import 'package:otti_calendar/services/auth_service.dart';
 import 'package:otti_calendar/models/auth_response.dart';
 
@@ -102,7 +103,10 @@ class _MainDrawerState extends State<MainDrawer> {
                         Navigator.pop(context);
                         Navigator.push(context, MaterialPageRoute(builder: (context) => const GroupManagementPage()));
                       }),
-                      _buildFunctionItem(Icons.pie_chart_outline, '数据统计', () {}),
+                      _buildFunctionItem(Icons.pie_chart_outline, '数据统计', () {
+                        Navigator.pop(context); // 关闭侧边栏
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const StatisticsPage()));
+                      }),
                       _buildFunctionItem(Icons.layers_outlined, '更多', () {}),
                     ],
                   ),
@@ -131,7 +135,7 @@ class _MainDrawerState extends State<MainDrawer> {
           ),
           const SizedBox(height: 12),
 
-          // 4. 退出登录卡片 (放在设置下方)
+          // 4. 退出登录卡片
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Container(
