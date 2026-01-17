@@ -45,4 +45,7 @@ flutter {
 
 dependencies {
     implementation("com.github.equationl.paddleocr4android:paddleocr4android:v1.2.9")
+    // 悬浮窗 AI 接口调用需要
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 }

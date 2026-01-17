@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:otti_calendar/features/common/widgets/custom_date_picker.dart';
@@ -9,6 +12,8 @@ import 'package:otti_calendar/models/schedule.dart';
 import 'package:otti_calendar/services/group_service.dart';
 import 'package:otti_calendar/services/schedule_service.dart';
 import 'package:otti_calendar/services/ocr_service.dart';
+import 'package:otti_calendar/services/xfyun_speech_service.dart';
+import 'package:otti_calendar/services/floating_window_coordinator.dart';
 
 class AddScheduleBottomSheet extends StatefulWidget {
   const AddScheduleBottomSheet({super.key});
@@ -27,10 +32,12 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
   bool _isAiSendEnabled = false;
   bool _isLoading = false;
   bool _isOcrLoading = false;
+  bool _isVoiceRecording = false;
 
   final ScheduleService _scheduleService = ScheduleService();
   final GroupService _groupService = GroupService();
   final OcrService _ocrService = const OcrService();
+  final XfyunSpeechService _xfyunSpeechService = XfyunSpeechService();
   final ImagePicker _imagePicker = ImagePicker();
   
   DateTime? _selectedDate;
@@ -79,6 +86,7 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
 
   @override
   void dispose() {
+    _xfyunSpeechService.dispose();
     _manualTitleController.dispose();
     _manualLocationController.dispose();
     _aiTextController.dispose();
@@ -113,6 +121,49 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
         });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('OCR 识别出错: $e')));
       }
+    }
+  }
+
+  Future<void> _handleVoiceInput() async {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('语音识别待开发')));
+  }
+
+  Future<void> _handleFloatingWindow() async {
+    if (!mounted) return;
+    if (!Platform.isAndroid) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('悬浮窗仅支持安卓')));
+      return;
+    }
+    final notificationStatus = await Permission.notification.request();
+    if (!notificationStatus.isGranted && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请开启通知权限以显示悬浮窗')));
+      return;
+    }
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('开启悬浮窗'),
+        content: const Text('开启后可在其他应用中点击悬浮窗进行全屏截图识别。需要授予悬浮窗与截屏权限。'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('去开启')),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    // 启动原生悬浮窗服务（会自动请求悬浮窗权限和录屏权限）
+    final enabled = await FloatingWindowCoordinator.instance.enableFloatingWindow(context);
+    if (!enabled) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('启动悬浮窗失败')));
+      return;
+    }
+
+    if (mounted) {
+      Navigator.pop(context); // 关闭底部弹窗
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('悬浮窗已开启，点击悬浮球即可截屏识别')));
     }
   }
 
@@ -459,9 +510,13 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      _buildAiActionButton(Icons.picture_in_picture_alt_outlined, '悬浮窗', () {}),
+                      _buildAiActionButton(Icons.picture_in_picture_alt_outlined, '悬浮窗', _handleFloatingWindow),
                       const SizedBox(width: 16),
-                      _buildAiActionButton(Icons.mic_none_outlined, '语音输入', () {}),
+                      _buildAiActionButton(
+                        _isVoiceRecording ? Icons.mic_rounded : Icons.mic_none_outlined,
+                        _isVoiceRecording ? '录音中' : '语音输入',
+                        _handleVoiceInput,
+                      ),
                       const SizedBox(width: 16),
                       _buildAiActionButton(Icons.image_outlined, '相册上传', () => _handleImageOcr(ImageSource.gallery)),
                       const SizedBox(width: 16),

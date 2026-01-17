@@ -14,6 +14,7 @@ import 'package:otti_calendar/features/schedule/widgets/bottom_input_bar.dart';
 import 'package:lunar/lunar.dart' hide Holiday;
 import 'package:otti_calendar/features/profile/main_drawer.dart';
 import 'package:otti_calendar/features/common/widgets/custom_date_picker.dart';
+import 'package:otti_calendar/services/floating_window_coordinator.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 class CalendarPage extends StatefulWidget {
@@ -47,12 +48,23 @@ class _CalendarPageState extends State<CalendarPage> {
     _focusedDay = now;
     _selectedDay = DateTime(now.year, now.month, now.day);
     _pageController = PageController(initialPage: _getPageIndex(_focusedDay));
+    FloatingWindowCoordinator.instance.initialize(
+      onScheduleCreated: (schedule) async {
+        if (!mounted) return;
+        final targetDate = DateTime.tryParse(schedule.scheduleDate) ?? DateTime.now();
+        _jumpToDate(targetDate);
+        _showMiddleTip('日程添加成功');
+        await Future.delayed(const Duration(milliseconds: 120));
+        _fetchSchedules();
+      },
+    );
     _fetchHolidays();
     _fetchSchedules(); 
   }
 
   @override
   void dispose() {
+    FloatingWindowCoordinator.instance.dispose();
     _pageController.dispose();
     super.dispose();
   }

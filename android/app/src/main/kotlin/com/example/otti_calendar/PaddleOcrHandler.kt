@@ -78,11 +78,17 @@ class PaddleOcrHandler(private val context: Context) {
     }
 
     private fun runOcr(bitmap: Bitmap): String {
+        val tOcrStart = android.os.SystemClock.uptimeMillis()
+        android.util.Log.i("PaddleOcrHandler", "⏱️ [OCR] runOcr START, bitmap=${bitmap.width}x${bitmap.height}")
+        
         val result: OcrResult = when (val r = ocr?.runSync(bitmap)) {
             is Result<*> -> (r.getOrNull() as? OcrResult) ?: throw (r.exceptionOrNull() ?: IllegalStateException("OCR 识别失败"))
             is OcrResult -> r
             else -> throw IllegalStateException("OCR 引擎未初始化")
         }
+        
+        val tOcrEnd = android.os.SystemClock.uptimeMillis()
+        android.util.Log.i("PaddleOcrHandler", "⏱️ [OCR] runOcr DONE, ocr_engine_time=${tOcrEnd - tOcrStart}ms, text_len=${result.simpleText.length}")
         return result.simpleText
     }
 
