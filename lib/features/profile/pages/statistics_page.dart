@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:otti_calendar/models/schedule.dart';
 import 'package:otti_calendar/services/schedule_service.dart';
-import 'package:intl/intl.dart';
 
 class StatisticsPage extends StatefulWidget {
   const StatisticsPage({super.key});
@@ -14,6 +14,35 @@ class _StatisticsPageState extends State<StatisticsPage> {
   final ScheduleService _scheduleService = ScheduleService();
   bool _isLoading = true;
   List<Schedule> _displaySchedules = [];
+  List<Schedule> _monthSchedules = [];
+  List<Schedule> _rangeSchedules = [];
+  List<int> _weeklyCounts = const [];
+
+  static const Map<String, Color> _categoryColors = {
+    '工作': Color(0xFF2196F3),
+    '学习': Color(0xFF4CAF50),
+    '个人': Color(0xFFFF9800),
+    '生活': Color(0xFF9C27B0),
+    '健康': Color(0xFFF44336),
+    '运动': Color(0xFF009688),
+    '社交': Color(0xFFE91E63),
+    '家庭': Color(0xFF3F51B5),
+    '差旅': Color(0xFFFFC107),
+    '其他': Color(0xFF9E9E9E),
+  };
+
+  static const List<String> _categoryOrder = [
+    '工作',
+    '学习',
+    '个人',
+    '生活',
+    '健康',
+    '运动',
+    '社交',
+    '家庭',
+    '差旅',
+    '其他',
+  ];
   
   @override
   void initState() {
@@ -58,7 +87,61 @@ class _StatisticsPageState extends State<StatisticsPage> {
       return timeA.compareTo(timeB);
     });
 
+    _monthSchedules = await _getMonthSchedules(now);
+    _rangeSchedules = await _getRangeSchedules(now);
+    _weeklyCounts = _buildWeeklyCounts(now, _rangeSchedules);
+
     if (mounted) setState(() => _isLoading = false);
+  }
+
+  Future<List<Schedule>> _getMonthSchedules(DateTime now) async {
+    final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+    final futures = List.generate(
+      daysInMonth,
+      (index) => _scheduleService.getSchedulesByDate(DateTime(now.year, now.month, index + 1)),
+    );
+
+    final results = await Future.wait(futures);
+    return results.expand((list) => list).toList();
+  }
+
+  Future<List<Schedule>> _getRangeSchedules(DateTime now) async {
+    final startOfWeek = _startOfWeek(now);
+    final rangeStart = startOfWeek.subtract(const Duration(days: 7 * 4));
+    final rangeEnd = startOfWeek.add(const Duration(days: 7 * 4 - 1));
+
+    final days = rangeEnd.difference(rangeStart).inDays + 1;
+    final futures = List.generate(
+      days,
+      (index) => _scheduleService.getSchedulesByDate(rangeStart.add(Duration(days: index))),
+    );
+
+    final results = await Future.wait(futures);
+    return results.expand((list) => list).toList();
+  }
+
+  DateTime _startOfWeek(DateTime date) {
+    final weekday = date.weekday;
+    return DateTime(date.year, date.month, date.day).subtract(Duration(days: weekday - 1));
+  }
+
+  List<int> _buildWeeklyCounts(DateTime now, List<Schedule> schedules) {
+    final startOfWeek = _startOfWeek(now);
+    final rangeStart = startOfWeek.subtract(const Duration(days: 7 * 4));
+    final counts = List<int>.filled(8, 0);
+
+    for (final schedule in schedules) {
+      if (schedule.scheduleDate.isEmpty) continue;
+      final date = DateTime.parse(schedule.scheduleDate);
+      final diffDays = date.difference(rangeStart).inDays;
+      if (diffDays < 0 || diffDays >= 56) continue;
+      final weekIndex = diffDays ~/ 7;
+      if (weekIndex >= 0 && weekIndex < counts.length) {
+        counts[weekIndex] += 1;
+      }
+    }
+
+    return counts;
   }
 
   @override
@@ -83,9 +166,9 @@ class _StatisticsPageState extends State<StatisticsPage> {
               const SizedBox(height: 10),
               _buildTimelineCard(),
               const SizedBox(height: 24),
-              _buildChartCard('饼状图：统计本月内各分类的日程的数量分布情况'),
+              _buildPieChartCard(),
               const SizedBox(height: 24),
-              _buildChartCard('条形图与折线图结合：统计前四周到后三周每周的日程数量'),
+              _buildWeeklyTrendCard(),
               const SizedBox(height: 40),
             ],
           ),
@@ -141,6 +224,278 @@ class _StatisticsPageState extends State<StatisticsPage> {
           style: const TextStyle(fontSize: 18, height: 1.5, fontWeight: FontWeight.w500),
         ),
       ),
+    );
+  }
+
+  Widget _buildWeeklyTrendCard() {
+    final counts = _weeklyCounts.isEmpty ? List<int>.filled(8, 0) : _weeklyCounts;
+    final maxValue = counts.isEmpty ? 0 : counts.reduce((a, b) => a > b ? a : b);
+    final chartMax = (maxValue <= 5) ? 6.0 : (maxValue + 2).toDouble();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(32),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '每周日程趋势（前四周到后三周）',
+            style: TextStyle(fontSize: 18, height: 1.5, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 16),
+          if (counts.every((value) => value == 0))
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Text(
+                  '近几周暂无日程',
+                  style: TextStyle(fontSize: 16, color: Colors.black54),
+                ),
+              ),
+            )
+          else
+            SizedBox(
+              height: 220,
+              child: Stack(
+                children: [
+                  BarChart(
+                    BarChartData(
+                      maxY: chartMax,
+                      minY: 0,
+                      barTouchData: BarTouchData(enabled: false),
+                      gridData: FlGridData(
+                        show: true,
+                        drawVerticalLine: false,
+                        horizontalInterval: (chartMax / 3).ceilToDouble(),
+                        getDrawingHorizontalLine: (value) => FlLine(
+                          color: const Color(0xFFEDEFF3),
+                          strokeWidth: 1,
+                        ),
+                      ),
+                      titlesData: FlTitlesData(
+                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        leftTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 28,
+                            interval: (chartMax / 3).ceilToDouble(),
+                            getTitlesWidget: (value, meta) => Text(
+                              value.toInt().toString(),
+                              style: const TextStyle(fontSize: 10, color: Colors.black45),
+                            ),
+                          ),
+                        ),
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            interval: 1,
+                            getTitlesWidget: (value, meta) => _buildWeekLabel(value.toInt()),
+                          ),
+                        ),
+                      ),
+                      borderData: FlBorderData(show: false),
+                      barGroups: List.generate(counts.length, (index) {
+                        return BarChartGroupData(
+                          x: index,
+                          barRods: [
+                            BarChartRodData(
+                              toY: counts[index].toDouble(),
+                              color: const Color(0xFF8EC5FF),
+                              width: 14,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                          ],
+                        );
+                      }),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 28, right: 8, bottom: 24, top: 6),
+                    child: LineChart(
+                      LineChartData(
+                        minY: 0,
+                        maxY: chartMax,
+                        titlesData: const FlTitlesData(show: false),
+                        gridData: const FlGridData(show: false),
+                        borderData: FlBorderData(show: false),
+                        lineTouchData: LineTouchData(enabled: false),
+                        lineBarsData: [
+                          LineChartBarData(
+                            spots: List.generate(counts.length, (index) {
+                              return FlSpot(index.toDouble(), counts[index].toDouble());
+                            }),
+                            isCurved: true,
+                            color: const Color(0xFF4F46E5),
+                            barWidth: 2.5,
+                            dotData: FlDotData(
+                              show: true,
+                              getDotPainter: (spot, percent, bar, index) => FlDotCirclePainter(
+                                radius: 3,
+                                color: const Color(0xFF4F46E5),
+                                strokeWidth: 1,
+                                strokeColor: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeekLabel(int index) {
+    const labels = ['-4', '-3', '-2', '-1', '本周', '+1', '+2', '+3'];
+    final text = index >= 0 && index < labels.length ? labels[index] : '';
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 10, color: Colors.black45),
+      ),
+    );
+  }
+
+  Widget _buildPieChartCard() {
+    final counts = {for (final category in _categoryOrder) category: 0};
+    for (final schedule in _monthSchedules) {
+      final category = counts.containsKey(schedule.category) ? schedule.category : '其他';
+      counts[category] = (counts[category] ?? 0) + 1;
+    }
+
+    final total = counts.values.fold<int>(0, (sum, value) => sum + value);
+
+    final sections = counts.entries
+        .where((e) => e.value > 0)
+        .map((entry) {
+          final percent = total == 0 ? 0.0 : entry.value / total * 100;
+          return PieChartSectionData(
+            color: _categoryColors[entry.key] ?? Colors.grey,
+            value: entry.value.toDouble(),
+            title: percent >= 8 ? '${percent.toStringAsFixed(0)}%' : '',
+            radius: 60,
+            titleStyle: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          );
+        })
+        .toList();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(32),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '本月日程分类分布',
+            style: TextStyle(fontSize: 18, height: 1.5, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 16),
+          if (total == 0)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Text(
+                  '本月暂无日程',
+                  style: TextStyle(fontSize: 16, color: Colors.black54),
+                ),
+              ),
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isNarrow = constraints.maxWidth < 360;
+                final chartWidget = SizedBox(
+                  width: 160,
+                  height: 160,
+                  child: PieChart(
+                    PieChartData(
+                      sections: sections,
+                      sectionsSpace: 2,
+                      centerSpaceRadius: 24,
+                      borderData: FlBorderData(show: false),
+                    ),
+                  ),
+                );
+
+                final legendWidget = _buildLegend(counts, total);
+
+                return isNarrow
+                    ? Column(
+                        children: [
+                          chartWidget,
+                          const SizedBox(height: 16),
+                          legendWidget,
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          chartWidget,
+                          const SizedBox(width: 16),
+                          Expanded(child: legendWidget),
+                        ],
+                      );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLegend(Map<String, int> counts, int total) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          children: counts.entries
+              .where((e) => e.value > 0)
+              .map((entry) => _buildLegendItem(entry.key, entry.value))
+              .toList(),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          '总计：$total',
+          style: const TextStyle(fontSize: 13, color: Colors.black54),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLegendItem(String category, int count) {
+    final color = _categoryColors[category] ?? Colors.grey;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          '$category $count',
+          style: const TextStyle(fontSize: 12, color: Colors.black87),
+        ),
+      ],
     );
   }
 }

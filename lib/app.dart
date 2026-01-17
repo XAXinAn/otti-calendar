@@ -10,6 +10,7 @@ class OttiApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'OttiCalendar',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         splashFactory: NoSplash.splashFactory,
         highlightColor: Colors.transparent,
