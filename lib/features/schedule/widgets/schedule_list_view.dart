@@ -4,7 +4,7 @@ import 'package:otti_calendar/models/schedule.dart';
 
 class ScheduleListView extends StatelessWidget {
   final List<Map<String, dynamic>> schedules;
-  final Function(String)? onActionComplete;
+  final Function(dynamic)? onActionComplete;
 
   const ScheduleListView({super.key, required this.schedules, this.onActionComplete});
 
@@ -45,7 +45,7 @@ class ScheduleListView extends StatelessWidget {
               MaterialPageRoute(builder: (context) => ScheduleDetailPage(schedule: schedule)),
             );
             if (result != null && onActionComplete != null) {
-              onActionComplete!(result as String);
+              onActionComplete!(result);
             }
           },
           borderRadius: BorderRadius.circular(12),

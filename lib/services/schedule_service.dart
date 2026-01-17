@@ -4,7 +4,7 @@ import 'package:otti_calendar/services/auth_service.dart';
 
 class ScheduleService {
   final Dio _dio = Dio(BaseOptions(
-    baseUrl: 'http://192.168.43.227:8080',
+    baseUrl: 'http://localhost:8080',
     connectTimeout: const Duration(seconds: 5),
     receiveTimeout: const Duration(seconds: 3),
   ));

@@ -63,6 +63,7 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
     _locationController = TextEditingController(text: _currentSchedule.location ?? '');
     _isImportant = _currentSchedule.isImportant;
     _selectedGroupId = _currentSchedule.groupId;
+    _selectedGroupName = _currentSchedule.groupName ?? '正在加载...';
     _loadGroupName();
   }
 
@@ -70,6 +71,10 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
   Future<void> _loadGroupName() async {
     if (_selectedGroupId == null) {
       if (mounted) setState(() => _selectedGroupName = '个人');
+      return;
+    }
+    if (_currentSchedule.groupName != null && _currentSchedule.groupName!.trim().isNotEmpty) {
+      if (mounted) setState(() => _selectedGroupName = _currentSchedule.groupName!.trim());
       return;
     }
     // 实际开发中可以从本地缓存或群组列表中匹配，这里模拟获取
@@ -128,7 +133,12 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
     final success = await _scheduleService.updateSchedule(updated);
     if (mounted) {
       setState(() => _isSaving = false);
-      if (success) Navigator.pop(context, 'updated');
+      if (success) {
+        Navigator.pop(context, {
+          'action': 'updated',
+          'date': updated.scheduleDate,
+        });
+      }
     }
   }
 
@@ -201,7 +211,12 @@ class _ScheduleDetailPageState extends State<ScheduleDetailPage> {
       final success = await _scheduleService.deleteSchedule(_currentSchedule.scheduleId!);
       if (mounted) {
         setState(() => _isSaving = false);
-        if (success) Navigator.pop(context, 'deleted');
+        if (success) {
+          Navigator.pop(context, {
+            'action': 'deleted',
+            'date': _currentSchedule.scheduleDate,
+          });
+        }
       }
     }
   }

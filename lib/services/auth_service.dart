@@ -2,10 +2,11 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:otti_calendar/models/auth_response.dart';
+import 'package:otti_calendar/models/auth_session.dart';
 
 class AuthService {
   final Dio _dio = Dio(BaseOptions(
-    baseUrl: 'http://192.168.43.227:8080',
+    baseUrl: 'http://localhost:8080',
     connectTimeout: const Duration(seconds: 5),
     receiveTimeout: const Duration(seconds: 3),
   ));
@@ -31,6 +32,25 @@ class AuthService {
     } on DioException catch (e) {
       return AuthResponse(code: 500, message: '登录失败');
     }
+  }
+
+  // 密码登录（兼容旧页面调用）
+  Future<AuthSession> loginWithPassword(String phone, String password) async {
+    final response = await login(phone, password);
+    if (response.code != 200 || response.data == null) {
+      throw Exception(response.message);
+    }
+    return AuthSession.fromAuthData(response.data!);
+  }
+
+  // 验证码登录（暂未接入后端）
+  Future<AuthSession> loginWithCode(String phone, String code) async {
+    throw UnsupportedError('验证码登录尚未接入后端');
+  }
+
+  // 发送验证码（暂未接入后端）
+  Future<void> sendCode(String phone) async {
+    throw UnsupportedError('验证码发送尚未接入后端');
   }
 
   // 2. 更新个人信息 (New)

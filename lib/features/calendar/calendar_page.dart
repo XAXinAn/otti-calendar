@@ -6,6 +6,7 @@ import 'package:otti_calendar/models/holiday.dart';
 import 'package:otti_calendar/models/schedule.dart';
 import 'package:otti_calendar/services/holiday_service.dart';
 import 'package:otti_calendar/services/schedule_service.dart';
+import 'package:otti_calendar/services/ai_quick_schedule_service.dart';
 import 'package:otti_calendar/features/calendar/widgets/calendar_card.dart';
 import 'package:otti_calendar/features/schedule/widgets/schedule_list_view.dart';
 import 'package:otti_calendar/features/schedule/widgets/add_schedule_bottom_sheet.dart';
@@ -25,9 +26,11 @@ class CalendarPage extends StatefulWidget {
 class _CalendarPageState extends State<CalendarPage> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
+  DateTime? _pendingJumpDay;
   Map<DateTime, Holiday> _holidayData = {};
   final HolidayService _holidayService = HolidayService();
   final ScheduleService _scheduleService = ScheduleService();
+  final AiQuickScheduleService _aiQuickScheduleService = AiQuickScheduleService();
   CalendarFormat _calendarFormat = CalendarFormat.month;
 
   late PageController _pageController;
@@ -168,16 +171,59 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   void _showAddScheduleSheet() async {
-    final result = await showModalBottomSheet<bool>(
+    final result = await showModalBottomSheet<dynamic>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => const AddScheduleBottomSheet(),
     );
-    
+
     if (result == true) {
       _showMiddleTip('日程添加成功');
       _fetchSchedules();
+    } else if (result is Map && result['action'] == 'aiQuickCreate') {
+      final text = result['text']?.toString() ?? '';
+      await _handleAiQuickCreate(text);
+    }
+  }
+
+  Future<void> _handleAiQuickCreate(String text) async {
+    if (text.trim().isEmpty) return;
+    try {
+      final schedule = await _aiQuickScheduleService.createQuickSchedule(text.trim());
+      if (!mounted) return;
+      final targetDate = DateTime.tryParse(schedule.scheduleDate) ?? DateTime.now();
+      _jumpToDate(targetDate);
+      _showMiddleTip('日程添加成功');
+      Future.delayed(const Duration(milliseconds: 120), _fetchSchedules);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('日程添加失败: $e')),
+      );
+    }
+  }
+
+  void _jumpToDate(DateTime target) {
+    final normalized = DateTime(target.year, target.month, target.day);
+    final targetPage = _getPageIndex(normalized);
+
+    setState(() {
+      _focusedDay = normalized;
+      _selectedDay = normalized;
+      _pendingJumpDay = normalized;
+    });
+
+    if (_pageController.hasClients) {
+      final currentPage = _pageController.page?.round();
+      if (currentPage == targetPage) {
+        _pendingJumpDay = null;
+      }
+      _pageController.animateToPage(
+        targetPage,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
     }
   }
 
@@ -188,6 +234,7 @@ class _CalendarPageState extends State<CalendarPage> {
     setState(() {
       _focusedDay = now;
       _selectedDay = DateTime(now.year, now.month, now.day);
+      _pendingJumpDay = null;
     });
 
     if (_pageController.hasClients) {
@@ -281,9 +328,19 @@ class _CalendarPageState extends State<CalendarPage> {
                   controller: _pageController,
                   onPageChanged: (index) {
                     final newDate = _getDateFromIndex(index);
+                    final pending = _pendingJumpDay;
+                    final usePending = pending != null &&
+                        pending.year == newDate.year &&
+                        pending.month == newDate.month;
                     setState(() {
-                      _focusedDay = newDate;
-                      _selectedDay = DateTime(newDate.year, newDate.month, 1);
+                      if (usePending) {
+                        _focusedDay = pending!;
+                        _selectedDay = pending;
+                        _pendingJumpDay = null;
+                      } else {
+                        _focusedDay = newDate;
+                        _selectedDay = DateTime(newDate.year, newDate.month, 1);
+                      }
                     });
                     _fetchSchedules();
                   },
@@ -360,12 +417,29 @@ class _CalendarPageState extends State<CalendarPage> {
                             ScheduleListView(
                               schedules: _currentSchedules.map((s) => s.toJson()).toList(),
                               onActionComplete: (action) {
-                                // 接收来自详情页的操作反馈
-                                if (action == 'updated') {
+                                String? actionType;
+                                String? actionDate;
+
+                                if (action is Map) {
+                                  actionType = action['action']?.toString();
+                                  actionDate = action['date']?.toString();
+                                } else if (action is String) {
+                                  actionType = action;
+                                }
+
+                                if (actionType == 'updated') {
                                   _showMiddleTip('修改成功');
-                                } else if (action == 'deleted') {
+                                } else if (actionType == 'deleted') {
                                   _showMiddleTip('删除成功');
                                 }
+
+                                if (actionDate != null && actionDate.isNotEmpty) {
+                                  final target = DateTime.tryParse(actionDate);
+                                  if (target != null) {
+                                    _jumpToDate(target);
+                                  }
+                                }
+
                                 _fetchSchedules(); // 刷新列表
                               },
                             ),

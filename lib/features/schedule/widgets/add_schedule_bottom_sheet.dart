@@ -64,7 +64,7 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
 
     _manualTitleController.addListener(_updateManualSendState);
     _aiTextController.addListener(() {
-      final isEnabled = _aiTextController.text.isNotEmpty;
+      final isEnabled = _aiTextController.text.trim().isNotEmpty;
       if (isEnabled != _isAiSendEnabled) setState(() => _isAiSendEnabled = isEnabled);
     });
   }
@@ -256,6 +256,12 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
     } else {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('日程添加失败')));
     }
+  }
+
+  void _handleAiQuickSubmit() {
+    final text = _aiTextController.text.trim();
+    if (text.isEmpty || _isOcrLoading) return;
+    Navigator.pop(context, {'action': 'aiQuickCreate', 'text': text});
   }
 
   Widget _buildTag(String label, Color color, VoidCallback onCancel) {
@@ -472,7 +478,7 @@ class _AddScheduleBottomSheetState extends State<AddScheduleBottomSheet> with Ti
                     child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blue)),
                   )
                 : IconButton(
-                    onPressed: _isAiSendEnabled ? () {} : null,
+                    onPressed: _isAiSendEnabled ? _handleAiQuickSubmit : null,
                     icon: Icon(
                       Icons.near_me, 
                       size: 32, 
